@@ -26,15 +26,15 @@ export default function TaskRow({ task, completed, onToggle, onEdit }) {
         opacity: completed ? 0.6 : 1,
       }}
     >
-      <Stack direction="row" spacing={1.5} alignItems="center">
+      <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
         <Checkbox
           checked={!!completed}
           onChange={(e) => onToggle?.(e.target.checked)}
-          inputProps={{ 'aria-label': `Mark ${task.title} as done` }}
+          slotProps={{ input: { 'aria-label': `Mark ${task.title} as done` } }}
           sx={{ p: 0.5 }}
         />
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.25 }}>
+          <Stack direction="row" spacing={1} sx={{ mb: 0.25, alignItems: 'center' }}>
             <Typography
               variant="subtitle2"
               sx={{ fontVariantNumeric: 'tabular-nums', color: 'primary.main' }}
@@ -53,7 +53,7 @@ export default function TaskRow({ task, completed, onToggle, onEdit }) {
               {task.title}
             </Typography>
           </Stack>
-          <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
+          <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 0.75 }}>
             <Chip
               size="small"
               icon={recurring ? <IconRepeat size={12} /> : undefined}

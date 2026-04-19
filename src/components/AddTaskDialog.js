@@ -29,6 +29,7 @@ import {
 } from '@mui/material';
 import { IconTrash, IconX } from '@tabler/icons-react';
 import DayPicker from './DayPicker';
+import TimeField from './TimeField';
 import { addTask, updateTask, deleteTask, todayKey } from '@/lib/db';
 import { rescheduleAll } from '@/lib/notifications';
 
@@ -121,16 +122,13 @@ export default function AddTaskDialog({ open, initial, onClose }) {
             label="What are you doing?"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            inputProps={{ maxLength: MAX_TITLE, autoFocus: true }}
+            slotProps={{ htmlInput: { maxLength: MAX_TITLE, autoFocus: true } }}
             placeholder="Deep work — chapter 3"
           />
-          <TextField
+          <TimeField
             label="At what time?"
-            type="time"
             value={time}
-            onChange={(e) => setTime(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            inputProps={{ step: 300 }}
+            onChange={setTime}
           />
           <Box>
             <Typography variant="subtitle2" sx={{ mb: 1 }}>
@@ -149,7 +147,7 @@ export default function AddTaskDialog({ open, initial, onClose }) {
             onChange={(e) => setNote(e.target.value)}
             multiline
             minRows={2}
-            inputProps={{ maxLength: MAX_NOTE }}
+            slotProps={{ htmlInput: { maxLength: MAX_NOTE } }}
             placeholder="Why this matters today…"
           />
           {error ? (

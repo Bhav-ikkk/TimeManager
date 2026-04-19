@@ -10,7 +10,6 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
   Stack,
   Button,
   Typography,
@@ -19,6 +18,7 @@ import {
   Chip,
 } from '@mui/material';
 import { IconX } from '@tabler/icons-react';
+import TimeField from './TimeField';
 import {
   getMorningAlarm,
   setMorningAlarm,
@@ -79,7 +79,7 @@ export default function SettingsDialog({ open, onClose }) {
         <Stack spacing={3}>
           <Stack spacing={1}>
             <Typography variant="subtitle2">Notifications</Typography>
-            <Stack direction="row" spacing={1} alignItems="center">
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
               <Chip size="small" color={permColor} label={permLabel} />
               {perm === 'default' ? (
                 <Button size="small" variant="outlined" onClick={enableNotifications}>
@@ -94,13 +94,7 @@ export default function SettingsDialog({ open, onClose }) {
 
           <Stack spacing={1}>
             <Typography variant="subtitle2">Morning alarm</Typography>
-            <TextField
-              type="time"
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-              inputProps={{ step: 300 }}
-            />
+            <TimeField label="Alarm time" value={time} onChange={setTime} />
             <Typography variant="caption" color="text.secondary">
               A friendly nudge to start the day, sent at this time.
             </Typography>

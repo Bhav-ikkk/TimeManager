@@ -38,11 +38,11 @@ export default function PermissionBanner() {
     <Stack
       direction="row"
       spacing={1.5}
-      alignItems="center"
       sx={(t) => ({
+        alignItems: 'center',
         p: 1.5,
         border: `1px solid ${t.palette.divider}`,
-        borderRadius: 2,
+        borderRadius: 1,
         bgcolor:
           t.palette.mode === 'dark'
             ? 'rgba(45, 212, 191, 0.06)'

@@ -31,7 +31,7 @@ export default function DayPicker({ value = [], onChange }) {
 
   return (
     <Stack spacing={1}>
-      <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+      <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap', gap: 0.75 }}>
         {DAYS.map((d) => {
           const active = set.has(d.value);
           return (

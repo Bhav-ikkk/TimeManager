@@ -16,6 +16,7 @@
     "@mui/material": "^9.0.0",
     "@mui/material-nextjs": "^9.0.0",
     "@mui/system": "^9.0.0",
+    "@mui/x-date-pickers": "^9.0.2",
     "@tabler/icons-react": "^3.41.1",
     "date-fns": "^4.1.0",
     "dexie": "^4.4.2",

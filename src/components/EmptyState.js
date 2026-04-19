@@ -17,7 +17,7 @@ export default function EmptyState({ icon, title, body, action }) {
         borderRadius: 3,
       })}
     >
-      <Stack spacing={1.5} alignItems="center">
+      <Stack spacing={1.5} sx={{ alignItems: 'center' }}>
         {icon ? <Box sx={{ color: 'text.secondary' }}>{icon}</Box> : null}
         <Typography variant="h6">{title}</Typography>
         {body ? (

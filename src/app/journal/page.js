@@ -140,9 +140,11 @@ export default function JournalPage() {
                 multiline
                 minRows={6}
                 maxRows={14}
-                inputProps={{ maxLength: MAX_NOTE }}
                 variant="standard"
-                InputProps={{ disableUnderline: true }}
+                slotProps={{
+                  htmlInput: { maxLength: MAX_NOTE },
+                  input: { disableUnderline: true },
+                }}
                 sx={{
                   '& textarea': {
                     fontSize: 16,
@@ -150,7 +152,7 @@ export default function JournalPage() {
                   },
                 }}
               />
-              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1 }}>
+              <Stack direction="row" sx={{ mt: 1, justifyContent: 'space-between', alignItems: 'center' }}>
                 <Typography variant="caption" color="text.secondary">
                   {text.length}/{MAX_NOTE}
                 </Typography>
@@ -201,7 +203,7 @@ function TaskSummary({ tasks, completedIds }) {
           const done = completedIds.has(t.id);
           return (
             <Card key={t.id} sx={{ p: 1.25, opacity: done ? 0.7 : 1 }}>
-              <Stack direction="row" spacing={1.25} alignItems="center">
+              <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
                 <Chip
                   size="small"
                   label={done ? 'Done' : 'Missed'}
