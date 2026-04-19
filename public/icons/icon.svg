@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="TauntTable">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f766e"/>
+      <stop offset="100%" stop-color="#134e4a"/>
+    </linearGradient>
+    <linearGradient id="sand" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fef3c7"/>
+      <stop offset="100%" stop-color="#fcd34d"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded background tile -->
+  <rect x="0" y="0" width="512" height="512" rx="112" ry="112" fill="url(#bg)"/>
+
+  <!-- Subtle inner highlight for depth -->
+  <rect x="24" y="24" width="464" height="464" rx="96" ry="96" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="2"/>
+
+  <!-- Hourglass frame -->
+  <g transform="translate(128 96)" fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Top and bottom plates -->
+    <path d="M0 0 H256"/>
+    <path d="M0 320 H256"/>
+    <!-- Hourglass body -->
+    <path d="M16 0 C16 96, 240 96, 240 0"/>
+    <path d="M16 320 C16 224, 240 224, 240 320"/>
+    <path d="M16 0 L240 320 M240 0 L16 320" stroke-width="0" />
+  </g>
+
+  <!-- Sand (top) -->
+  <path d="M148 110 C148 170, 364 170, 364 110 L364 116 C364 176, 148 176, 148 116 Z" fill="url(#sand)" opacity="0.95"/>
+  <!-- Falling sand -->
+  <rect x="252" y="170" width="8" height="160" rx="3" fill="#fcd34d" opacity="0.9"/>
+  <!-- Sand pile (bottom) -->
+  <path d="M148 408 C148 348, 364 348, 364 408 Z" fill="url(#sand)" opacity="0.95"/>
+
+  <!-- Tiny checkmark — subtle accountability nod -->
+  <g transform="translate(346 346)">
+    <circle cx="0" cy="0" r="36" fill="#a7f3d0"/>
+    <path d="M-14 2 L-4 12 L16 -10" fill="none" stroke="#064e3b" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

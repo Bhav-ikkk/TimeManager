@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Maskable variant: extra safe-zone padding so OS round/squircle masks don't clip the glyph -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="TauntTable">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f766e"/>
+      <stop offset="100%" stop-color="#134e4a"/>
+    </linearGradient>
+    <linearGradient id="sand" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fef3c7"/>
+      <stop offset="100%" stop-color="#fcd34d"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="512" height="512" fill="url(#bg)"/>
+  <g transform="translate(96 96) scale(0.625)">
+    <g transform="translate(128 96)" fill="none" stroke="#ffffff" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M0 0 H256"/>
+      <path d="M0 320 H256"/>
+      <path d="M16 0 C16 96, 240 96, 240 0"/>
+      <path d="M16 320 C16 224, 240 224, 240 320"/>
+    </g>
+    <path d="M148 110 C148 170, 364 170, 364 110 L364 116 C364 176, 148 176, 148 116 Z" fill="url(#sand)"/>
+    <rect x="252" y="170" width="8" height="160" rx="3" fill="#fcd34d"/>
+    <path d="M148 408 C148 348, 364 348, 364 408 Z" fill="url(#sand)"/>
+  </g>
+</svg>
