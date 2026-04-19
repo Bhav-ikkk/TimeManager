@@ -14,8 +14,9 @@ import AppShell from '@/components/AppShell';
 import EmptyState from '@/components/EmptyState';
 import SkeletonList from '@/components/SkeletonList';
 import TaskRow from '@/components/TaskRow';
+import AddTaskDialog from '@/components/AddTaskDialog';
 import { useToday } from '@/hooks/useToday';
-import { setCompletion, deleteTask } from '@/lib/db';
+import { setCompletion } from '@/lib/db';
 
 export default function HomePage() {
   const today = new Date();
@@ -88,22 +89,11 @@ export default function HomePage() {
         <IconPlus size={22} />
       </Fab>
 
-      {/* AddTaskDialog will be wired in the next commit. */}
-      {editing ? (
-        <PlaceholderDialog
-          editing={editing}
-          onClose={() => setEditing(null)}
-          onDelete={async () => {
-            if (editing?.id) await deleteTask(editing.id);
-            setEditing(null);
-          }}
-        />
-      ) : null}
+      <AddTaskDialog
+        open={Boolean(editing)}
+        initial={editing}
+        onClose={() => setEditing(null)}
+      />
     </AppShell>
   );
-}
-
-function PlaceholderDialog({ onClose }) {
-  // Replaced by the real AddTaskDialog in the next commit.
-  return null;
 }
