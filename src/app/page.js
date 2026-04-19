@@ -18,6 +18,7 @@ import AddTaskDialog from '@/components/AddTaskDialog';
 import PermissionBanner from '@/components/PermissionBanner';
 import { useToday } from '@/hooks/useToday';
 import { setCompletion } from '@/lib/db';
+import { rescheduleAll } from '@/lib/notifications';
 
 export default function HomePage() {
   const today = new Date();
@@ -70,7 +71,11 @@ export default function HomePage() {
                 key={t.id}
                 task={t}
                 completed={isDone(t.id)}
-                onToggle={(v) => setCompletion(t.id, dateKey, v)}
+                onToggle={async (v) => {
+                  await setCompletion(t.id, dateKey, v);
+                  // Cancel any pending reminder for a task we just completed.
+                  rescheduleAll().catch(() => {});
+                }}
                 onEdit={(task) => setEditing(task)}
               />
             ))}
