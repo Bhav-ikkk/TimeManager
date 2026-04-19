@@ -37,8 +37,25 @@ export const viewport = {
 };
 
 export default function RootLayout({ children }) {
+  // Run before paint so users in dark mode never see a white flash.
+  const noFlashScript = `
+    (function () {
+      try {
+        var saved = localStorage.getItem('tt-theme');
+        var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var mode = saved === 'dark' || saved === 'light' ? saved : (prefersDark ? 'dark' : 'light');
+        document.documentElement.dataset.theme = mode;
+        var bg = mode === 'dark' ? '#0b1220' : '#fafaf7';
+        document.documentElement.style.backgroundColor = bg;
+      } catch (_) { /* ignore */ }
+    })();
+  `;
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* eslint-disable-next-line @next/next/no-sync-scripts */}
+        <script dangerouslySetInnerHTML={{ __html: noFlashScript }} />
+      </head>
       <body>
         <AppRouterCacheProvider options={{ enableCssLayer: true }}>
           <Providers>{children}</Providers>
