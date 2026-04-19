@@ -5,14 +5,17 @@
  * Minimal top bar: logo + title on the left, theme toggle + avatar on the right.
  * Sits sticky at the top with a subtle blur. No animation per the brief.
  */
+import { useState } from 'react';
 import { AppBar, Toolbar, Box, Typography, IconButton, Avatar, Tooltip } from '@mui/material';
-import { IconSun, IconMoon, IconNotebook } from '@tabler/icons-react';
+import { IconSun, IconMoon, IconNotebook, IconSettings } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useThemeMode } from '@/app/providers';
 import Logo from './Logo';
+import SettingsDialog from './SettingsDialog';
 
 export default function TopBar({ initial = 'B' }) {
   const { mode, toggle } = useThemeMode();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const isDark = mode === 'dark';
 
   return (
@@ -45,6 +48,12 @@ export default function TopBar({ initial = 'B' }) {
           </IconButton>
         </Tooltip>
 
+        <Tooltip title="Settings">
+          <IconButton onClick={() => setSettingsOpen(true)} aria-label="Open settings">
+            <IconSettings size={20} />
+          </IconButton>
+        </Tooltip>
+
         <Avatar
           sx={(t) => ({
             width: 32,
@@ -63,6 +72,7 @@ export default function TopBar({ initial = 'B' }) {
           {initial}
         </Avatar>
       </Toolbar>
+      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </AppBar>
   );
 }

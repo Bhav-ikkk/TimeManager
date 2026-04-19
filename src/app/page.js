@@ -15,6 +15,7 @@ import EmptyState from '@/components/EmptyState';
 import SkeletonList from '@/components/SkeletonList';
 import TaskRow from '@/components/TaskRow';
 import AddTaskDialog from '@/components/AddTaskDialog';
+import PermissionBanner from '@/components/PermissionBanner';
 import { useToday } from '@/hooks/useToday';
 import { setCompletion } from '@/lib/db';
 
@@ -42,6 +43,8 @@ export default function HomePage() {
               : `${done} of ${total} done${done === total ? ' — perfectly executed.' : ''}`}
           </Typography>
         </Box>
+
+        <PermissionBanner />
 
         {loading ? (
           <SkeletonList />
