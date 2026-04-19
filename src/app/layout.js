@@ -2,11 +2,9 @@
  * src/app/layout.js
  * Root layout for TauntTable. Loads MUI providers, theme, fonts, and PWA meta.
  */
-import { Inter } from 'next/font/google';
+import { AppRouterCacheProvider } from '@mui/material-nextjs/v16-appRouter';
 import Providers from './providers';
 import './globals.css';
-
-const inter = Inter({ subsets: ['latin'], display: 'swap' });
 
 export const metadata = {
   title: 'TauntTable — Daily Discipline',
@@ -14,7 +12,6 @@ export const metadata = {
     'A calm, premium daily-discipline app. Plan your day, get reminded, and get roasted if you slack.',
   applicationName: 'TauntTable',
   manifest: '/manifest.json',
-  themeColor: '#0f172a',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
@@ -36,13 +33,16 @@ export const viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
+  themeColor: '#0f766e',
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
-        <Providers>{children}</Providers>
+      <body>
+        <AppRouterCacheProvider options={{ enableCssLayer: true }}>
+          <Providers>{children}</Providers>
+        </AppRouterCacheProvider>
       </body>
     </html>
   );

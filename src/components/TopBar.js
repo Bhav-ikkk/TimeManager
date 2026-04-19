@@ -1,0 +1,68 @@
+'use client';
+
+/**
+ * src/components/TopBar.js
+ * Minimal top bar: logo + title on the left, theme toggle + avatar on the right.
+ * Sits sticky at the top with a subtle blur. No animation per the brief.
+ */
+import { AppBar, Toolbar, Box, Typography, IconButton, Avatar, Tooltip } from '@mui/material';
+import { IconSun, IconMoon, IconNotebook } from '@tabler/icons-react';
+import Link from 'next/link';
+import { useThemeMode } from '@/app/providers';
+import Logo from './Logo';
+
+export default function TopBar({ initial = 'B' }) {
+  const { mode, toggle } = useThemeMode();
+  const isDark = mode === 'dark';
+
+  return (
+    <AppBar position="sticky">
+      <Toolbar
+        sx={{
+          gap: 1,
+          minHeight: { xs: 56, sm: 64 },
+          paddingTop: 'var(--safe-top)',
+        }}
+      >
+        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Logo size={28} />
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, letterSpacing: '-0.01em' }}>
+            TauntTable
+          </Typography>
+        </Link>
+
+        <Box sx={{ flex: 1 }} />
+
+        <Tooltip title="Journal">
+          <IconButton component={Link} href="/journal" aria-label="Open journal">
+            <IconNotebook size={20} />
+          </IconButton>
+        </Tooltip>
+
+        <Tooltip title={isDark ? 'Light mode' : 'Dark mode'}>
+          <IconButton onClick={toggle} aria-label="Toggle theme">
+            {isDark ? <IconSun size={20} /> : <IconMoon size={20} />}
+          </IconButton>
+        </Tooltip>
+
+        <Avatar
+          sx={(t) => ({
+            width: 32,
+            height: 32,
+            ml: 0.5,
+            fontSize: 14,
+            fontWeight: 600,
+            bgcolor:
+              t.palette.mode === 'dark'
+                ? 'rgba(45, 212, 191, 0.18)'
+                : 'rgba(15, 118, 110, 0.10)',
+            color: t.palette.primary.main,
+          })}
+          alt={initial}
+        >
+          {initial}
+        </Avatar>
+      </Toolbar>
+    </AppBar>
+  );
+}
