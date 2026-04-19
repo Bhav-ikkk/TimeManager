@@ -114,7 +114,7 @@ export function buildTheme(mode = 'light') {
       MuiChip: {
         styleOverrides: {
           root: ({ theme }) => ({
-            borderRadius: 999,
+            borderRadius: 4,
             fontWeight: 500,
             border: `1px solid ${theme.palette.divider}`,
             backgroundColor:
@@ -133,7 +133,7 @@ export function buildTheme(mode = 'light') {
         },
       },
       MuiTextField: { defaultProps: { variant: 'outlined', fullWidth: true } },
-      MuiOutlinedInput: { styleOverrides: { root: { borderRadius: RADIUS.md } } },
+      MuiOutlinedInput: { styleOverrides: { root: { borderRadius: 4 } } },
       MuiDialog: { styleOverrides: { paper: { borderRadius: RADIUS.xl } } },
       MuiAppBar: {
         defaultProps: { elevation: 0, color: 'transparent' },
