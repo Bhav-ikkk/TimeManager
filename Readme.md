@@ -1,5 +1,332 @@
-1. Project Overview
-We are building a small, beautiful, single-purpose web app called TauntTable. It is designed to live permanently on your phone as a real app (PWA) and does only two main things every single day:
+# TauntTable
+
+A calm, premium daily-discipline PWA. Plan your day. Get gently reminded.
+At night, write what you actually did — and either get praised or roasted.
+
+Everything is **on-device, offline-first, and zero-cost.** No accounts, no
+servers, no Firebase, no paid push services.
+
+---
+
+## Highlights
+
+- **Daily timetable** with HH:mm reminders that fire as Web Notifications.
+- **Day-of-week recurrence** — set a task once, tick the days it should repeat.
+- **Morning alarm** — a configurable wake-up nudge with the day's first task.
+- **End-of-day journal** with an instant praise/roast verdict based on your timetable vs. completions.
+- **Light & dark modes** with a tap; respects system preference on first load and persists your choice.
+- **PWA** — installable on iOS and Android, works offline, custom hourglass logo.
+- **Local-only storage** via IndexedDB (Dexie). Your data never leaves the device.
+- **Premium, animation-free UI** with MUI + Tabler Icons.
+
+---
+
+## Tech stack
+
+| Layer            | Choice                                    |
+|------------------|-------------------------------------------|
+| Framework        | Next.js 16 (App Router) — JavaScript only |
+| UI               | MUI 9 + emotion + Tabler Icons            |
+| Local storage    | Dexie (IndexedDB) + dexie-react-hooks     |
+| Notifications    | Web Notifications API + service worker    |
+| Build & deploy   | Next.js production build → Vercel free    |
+
+---
+
+## Project layout
+
+```
+public/
+  icons/                # SVG master + PNG sizes (generated via scripts/gen-icons.js)
+  manifest.json         # PWA manifest
+  sw.js                 # Tiny service worker (notifications + click handler)
+scripts/
+  gen-icons.js          # Rasterizes the SVG icon into PWA PNGs
+src/
+  app/
+    layout.js           # Root layout, metadata, AppRouterCacheProvider
+    providers.js        # Theme mode context + bootstrap notifications
+    page.js             # Today screen
+    journal/page.js     # End-of-day journal + verdict
+    globals.css
+  components/
+    AppShell.js
+    TopBar.js
+    Logo.js
+    TaskRow.js
+    AddTaskDialog.js
+    DayPicker.js
+    PermissionBanner.js
+    SettingsDialog.js
+    Crumbs.js
+    EmptyState.js
+    SkeletonList.js
+  hooks/
+    useToday.js
+  lib/
+    db.js               # Dexie schema + CRUD helpers
+    theme.js            # MUI theme (light + dark, no animations)
+    notifications.js    # Permission, SW reg, foreground scheduler
+    quotes.js           # Motivational lines used in reminders
+    roasts.js           # Praise + roast lines used in the verdict
+    scoring.js          # Today vs. completions → verdict
+```
+
+---
+
+## Local development
+
+Requirements: Node 20+ and npm 10+.
+
+```powershell
+npm install
+npm run dev
+# open http://localhost:3000
+```
+
+Production build:
+
+```powershell
+npm run build
+npm run start
+```
+
+Re-generate the PWA icon set after editing `public/icons/icon.svg`:
+
+```powershell
+node scripts/gen-icons.js
+```
+
+---
+
+## Installing on your phone (free, no app store)
+
+### iOS (Safari 16.4+)
+1. Open the deployed URL in Safari.
+2. Tap **Share → Add to Home Screen**.
+3. Open TauntTable from the home screen, then tap **Enable** in the
+   reminders banner so iOS allows notifications.
+
+### Android (Chrome / Edge)
+1. Open the deployed URL in Chrome.
+2. Tap the menu and choose **Install app**.
+3. Open TauntTable, then tap **Enable** in the reminders banner.
+
+Once installed, the app behaves like a native app — full screen, custom
+icon, offline-capable, and notifications fire on the lock screen.
+
+---
+
+## How recurring tasks work
+
+When you create a task you pick a time **and** which days of the week it
+should repeat on (Mon–Sun chips, plus shortcuts for *Weekdays*, *Weekend*,
+*Every day*).
+
+- Pick **no days** → the task only appears today (one-off).
+- Pick **Mon, Wed, Fri** → it appears and reminds at the chosen time on
+  those days every week.
+
+Marking a recurring task done only marks it done **for today** — it
+returns clean tomorrow.
+
+---
+
+## How reminders work (and what they cost: nothing)
+
+- A tiny service worker (`/sw.js`) is registered on first load.
+- When the app is open, it queries today's tasks from Dexie and queues a
+  `setTimeout` for each upcoming reminder.
+- When a timer fires, the app asks the service worker to call
+  `showNotification`, so the alert appears even if the tab is briefly
+  backgrounded.
+- The morning alarm is just another scheduled notification, configurable
+  from the gear icon in the top bar.
+- On every visibility change and at midnight, the schedule is rebuilt so
+  edits take effect instantly.
+
+There are no servers, no push providers, and no API keys anywhere.
+
+---
+
+## Privacy & security
+
+- No accounts, no analytics, no telemetry.
+- All data lives in the browser's IndexedDB on your device.
+- The production server sets `Strict-Transport-Security`, `X-Frame-Options`,
+  `X-Content-Type-Options`, `Referrer-Policy`, and a tight `Permissions-Policy`.
+- `npm audit` is clean (0 vulnerabilities).
+
+---
+
+## Roadmap (nice-to-haves)
+
+- Weekly view with a streak counter.
+- Quick-add from a notification action.
+- Export/import journal as plain text.
+
+---
+
+## License
+
+MIT — do whatever you want, just don't blame us if your timetable starts
+roasting you.
+# TauntTable
+
+A calm, premium daily-discipline PWA. Plan your day. Get gently reminded.
+At night, write what you actually did — and either get praised or roasted.
+
+Everything is **on-device, offline-first, and zero-cost.** No accounts, no
+servers, no Firebase, no paid push services.
+
+---
+
+## Highlights
+
+- **Daily timetable** with HH:mm reminders that fire as Web Notifications.
+- **Day-of-week recurrence** — set a task once, tick the days it should repeat.
+- **Morning alarm** — a configurable wake-up nudge with the day's first task.
+- **End-of-day journal** with an instant praise/roast verdict based on your timetable vs. completions.
+- **Light & dark modes** with a tap; respects system preference on first load and persists your choice.
+- **PWA** — installable on iOS and Android, works offline, custom hourglass logo.
+- **Local-only storage** via IndexedDB (Dexie). Your data never leaves the device.
+- **Premium, animation-free UI** with MUI + Tabler Icons.
+
+---
+
+## Tech stack
+
+| Layer            | Choice                                    |
+|------------------|-------------------------------------------|
+| Framework        | Next.js 16 (App Router) — JavaScript only |
+| UI               | MUI 9 + emotion + Tabler Icons            |
+| Local storage    | Dexie (IndexedDB) + dexie-react-hooks     |
+| Notifications    | Web Notifications API + service worker    |
+| Build & deploy   | Next.js production build → Vercel free    |
+
+---
+
+## Project layout
+
+```
+public/
+  icons/                # SVG master + PNG sizes (generated via scripts/gen-icons.js)
+  manifest.json         # PWA manifest
+  sw.js                 # Tiny service worker (notifications + click handler)
+scripts/
+  gen-icons.js          # Rasterizes the SVG icon into PWA PNGs
+src/
+  app/
+    layout.js           # Root layout, metadata, AppRouterCacheProvider
+    providers.js        # Theme mode context + bootstrap notifications
+    page.js             # Today screen
+    journal/page.js     # End-of-day journal + verdict
+    globals.css
+  components/
+    AppShell.js
+    TopBar.js
+    Logo.js
+    TaskRow.js
+    AddTaskDialog.js
+    DayPicker.js
+    PermissionBanner.js
+    SettingsDialog.js
+    Crumbs.js
+    EmptyState.js
+    SkeletonList.js
+  hooks/
+    useToday.js
+  lib/
+    db.js               # Dexie schema + CRUD helpers
+    theme.js            # MUI theme (light + dark, no animations)
+    notifications.js    # Permission, SW reg, foreground scheduler
+    quotes.js           # Motivational lines used in reminders
+    roasts.js           # Praise + roast lines used in the verdict
+    scoring.js          # Today vs. completions → verdict
+```
+
+---
+
+## Local development
+
+Requirements: Node 20+ and npm 10+.
+
+```powershell
+npm install
+npm run dev
+# open http://localhost:3000
+```
+
+Production build:
+
+```powershell
+npm run build
+npm run start
+```
+
+Re-generate the PWA icon set after editing `public/icons/icon.svg`:
+
+```powershell
+node scripts/gen-icons.js
+```
+
+---
+
+## Installing on your phone (free, no app store)
+
+### iOS (Safari 16.4+)
+1. Open the deployed URL in Safari.
+2. Tap **Share → Add to Home Screen**.
+3. Open TauntTable from the home screen, then tap **Enable** in the
+   reminders banner so iOS allows notifications.
+
+### Android (Chrome / Edge)
+1. Open the deployed URL in Chrome.
+2. Tap the menu and choose **Install app**.
+3. Open TauntTable, then tap **Enable** in the reminders banner.
+
+Once installed, the app behaves like a native app — full screen, custom
+icon, offline-capable, and notifications fire on the lock screen.
+
+---
+
+## How reminders work (and what they cost: nothing)
+
+- A tiny service worker (`/sw.js`) is registered on first load.
+- When the app is open, it queries today's tasks from Dexie and queues a
+  `setTimeout` for each upcoming reminder.
+- When a timer fires, the app asks the service worker to call
+  `showNotification`, so the alert appears even if the tab is briefly
+  backgrounded.
+- The morning alarm is just another scheduled notification, configurable
+  from the gear icon in the top bar.
+- On every visibility change and at midnight, the schedule is rebuilt so
+  edits take effect instantly.
+
+There are no servers, no push providers, and no API keys anywhere.
+
+---
+
+## Privacy
+
+- No accounts, no analytics, no telemetry.
+- All data lives in the browser's IndexedDB on your device.
+- Your sister's TauntTable on her phone is a completely separate database.
+
+---
+
+## Roadmap (nice-to-haves)
+
+- Weekly view with a streak counter.
+- Quick-add from a notification action.
+- Export/import journal as plain text.
+
+---
+
+## License
+
+MIT — do whatever you want, just don't blame us if your timetable starts
+roasting you.
 
 You write your daily timetable and it reminds you at the exact times with encouraging quotes.
 At the end of the day you write a short note about what you actually achieved, and the app instantly checks your performance and either praises you or roasts you brutally if you failed.
