@@ -20,7 +20,7 @@
  * Map keyed by `${dateKey}::${taskId}` so duplicates can't pile up.
  */
 import { getDB, isTaskOnDate, todayKey, completionId } from './db';
-import { pickQuote } from './quotes';
+import { pickQuote, pickQuoteAsync } from './quotes';
 
 const SW_PATH = '/sw.js';
 const MORNING_ALARM_KEY = 'morning-alarm-time'; // "HH:mm"
@@ -160,10 +160,11 @@ export async function rescheduleAll() {
     if (delta <= 0) continue; // already passed
 
     const key = completionId(dateKey, task.id);
-    const handle = setTimeout(() => {
+    const handle = setTimeout(async () => {
+      const body = await pickQuoteAsync(task.id + at.getTime()).catch(() => pickQuote(task.id + at.getTime()));
       showNotification({
         title: task.title,
-        body: pickQuote(task.id + at.getTime()),
+        body,
         tag: key,
       });
       timers.delete(key);

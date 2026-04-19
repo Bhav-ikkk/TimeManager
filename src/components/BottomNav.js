@@ -1,0 +1,65 @@
+'use client';
+
+/**
+ * src/components/BottomNav.js
+ * Mobile-only bottom navigation. Hidden on >= sm breakpoints.
+ */
+import { useState } from 'react';
+import { Paper, BottomNavigation, BottomNavigationAction, Box } from '@mui/material';
+import { IconHome, IconNotebook, IconQuote, IconSettings } from '@tabler/icons-react';
+import { useRouter, usePathname } from 'next/navigation';
+import SettingsDialog from './SettingsDialog';
+import QuotesDialog from './QuotesDialog';
+
+export default function BottomNav() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [quotesOpen, setQuotesOpen] = useState(false);
+
+  const value = pathname?.startsWith('/journal') ? 'journal' : 'home';
+
+  return (
+    <>
+      <Box sx={{ display: { xs: 'block', sm: 'none' } }}>
+        <Paper
+          elevation={0}
+          sx={(t) => ({
+            position: 'fixed',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: t.zIndex.appBar,
+            borderRadius: 0,
+            borderTop: `1px solid ${t.palette.divider}`,
+            backdropFilter: 'saturate(180%) blur(12px)',
+            backgroundColor:
+              t.palette.mode === 'dark'
+                ? 'rgba(11, 18, 32, 0.85)'
+                : 'rgba(250, 250, 247, 0.85)',
+            paddingBottom: 'var(--safe-bottom)',
+          })}
+        >
+          <BottomNavigation
+            value={value}
+            showLabels
+            sx={{ bgcolor: 'transparent', height: 60 }}
+            onChange={(_, v) => {
+              if (v === 'home') router.push('/');
+              else if (v === 'journal') router.push('/journal');
+              else if (v === 'quotes') setQuotesOpen(true);
+              else if (v === 'settings') setSettingsOpen(true);
+            }}
+          >
+            <BottomNavigationAction value="home" label="Today" icon={<IconHome size={20} />} />
+            <BottomNavigationAction value="journal" label="Journal" icon={<IconNotebook size={20} />} />
+            <BottomNavigationAction value="quotes" label="Quotes" icon={<IconQuote size={20} />} />
+            <BottomNavigationAction value="settings" label="Settings" icon={<IconSettings size={20} />} />
+          </BottomNavigation>
+        </Paper>
+      </Box>
+      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <QuotesDialog open={quotesOpen} onClose={() => setQuotesOpen(false)} />
+    </>
+  );
+}

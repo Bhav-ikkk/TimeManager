@@ -29,3 +29,18 @@ export const QUOTES = [
 export function pickQuote(seed = Date.now()) {
   return QUOTES[Math.abs(seed) % QUOTES.length];
 }
+
+/**
+ * Async picker that mixes the built-ins with user-added quotes from Dexie.
+ * Falls back to the built-in list on any storage error.
+ */
+export async function pickQuoteAsync(seed = Date.now()) {
+  try {
+    const { getCustomQuotes } = await import('./db');
+    const custom = await getCustomQuotes();
+    const all = custom.length ? [...QUOTES, ...custom] : QUOTES;
+    return all[Math.abs(seed) % all.length];
+  } catch {
+    return pickQuote(seed);
+  }
+}

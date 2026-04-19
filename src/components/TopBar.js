@@ -37,7 +37,12 @@ export default function TopBar({ initial = 'B' }) {
         <Box sx={{ flex: 1 }} />
 
         <Tooltip title="Journal">
-          <IconButton component={Link} href="/journal" aria-label="Open journal">
+          <IconButton
+            component={Link}
+            href="/journal"
+            aria-label="Open journal"
+            sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+          >
             <IconNotebook size={20} />
           </IconButton>
         </Tooltip>
@@ -49,7 +54,11 @@ export default function TopBar({ initial = 'B' }) {
         </Tooltip>
 
         <Tooltip title="Settings">
-          <IconButton onClick={() => setSettingsOpen(true)} aria-label="Open settings">
+          <IconButton
+            onClick={() => setSettingsOpen(true)}
+            aria-label="Open settings"
+            sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+          >
             <IconSettings size={20} />
           </IconButton>
         </Tooltip>

@@ -149,3 +149,29 @@ export async function setSetting(key, value) {
   if (!db) return;
   await db.settings.put({ key, value });
 }
+
+/* ------------------------------------------------------------------ */
+/* Custom quotes (user-added motivational lines)                       */
+/* ------------------------------------------------------------------ */
+
+const CUSTOM_QUOTES_KEY = 'custom-quotes';
+
+export async function getCustomQuotes() {
+  const list = await getSetting(CUSTOM_QUOTES_KEY, []);
+  return Array.isArray(list) ? list : [];
+}
+
+export async function addCustomQuote(text) {
+  const trimmed = String(text || '').trim();
+  if (!trimmed) return;
+  const list = await getCustomQuotes();
+  if (list.includes(trimmed)) return;
+  list.push(trimmed);
+  await setSetting(CUSTOM_QUOTES_KEY, list);
+}
+
+export async function removeCustomQuote(text) {
+  const list = await getCustomQuotes();
+  const next = list.filter((q) => q !== text);
+  await setSetting(CUSTOM_QUOTES_KEY, next);
+}

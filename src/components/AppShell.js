@@ -6,6 +6,7 @@
  */
 import { Box, Container } from '@mui/material';
 import TopBar from './TopBar';
+import BottomNav from './BottomNav';
 
 export default function AppShell({ children, initial }) {
   return (
@@ -16,11 +17,12 @@ export default function AppShell({ children, initial }) {
         component="main"
         sx={{
           pt: { xs: 2, sm: 3 },
-          pb: 'calc(96px + var(--safe-bottom))',
+          pb: { xs: 'calc(96px + var(--safe-bottom))', sm: 'calc(48px + var(--safe-bottom))' },
         }}
       >
         {children}
       </Container>
+      <BottomNav />
     </Box>
   );
 }
