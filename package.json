@@ -1,0 +1,21 @@
+{
+  "name": "taunttable",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TauntTable — a calm, premium daily-discipline PWA that reminds you and roasts you when you slack.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "14.2.15",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "eslint": "8.57.0",
+    "eslint-config-next": "14.2.15"
+  }
+}
