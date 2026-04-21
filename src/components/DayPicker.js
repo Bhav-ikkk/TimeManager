@@ -30,8 +30,15 @@ export default function DayPicker({ value = [], onChange }) {
   const setMany = (vals) => onChange?.([...new Set(vals)].sort());
 
   return (
-    <Stack spacing={1}>
-      <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap', gap: 0.75 }}>
+    <Stack spacing={1.25}>
+      <Stack
+        direction="row"
+        sx={{
+          flexWrap: 'wrap',
+          gap: 0.75,
+          rowGap: 1,
+        }}
+      >
         {DAYS.map((d) => {
           const active = set.has(d.value);
           return (
@@ -42,11 +49,12 @@ export default function DayPicker({ value = [], onChange }) {
               color={active ? 'primary' : 'default'}
               variant={active ? 'filled' : 'outlined'}
               onClick={() => toggle(d.value)}
+              sx={{ minWidth: 52 }}
             />
           );
         })}
       </Stack>
-      <Stack direction="row" spacing={1}>
+      <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.5, rowGap: 0.75 }}>
         <Button size="small" onClick={() => setMany([1, 2, 3, 4, 5])}>
           Weekdays
         </Button>

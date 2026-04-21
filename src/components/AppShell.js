@@ -17,7 +17,8 @@ export default function AppShell({ children, initial }) {
         component="main"
         sx={{
           pt: { xs: 2, sm: 3 },
-          pb: { xs: 'calc(96px + var(--safe-bottom))', sm: 'calc(48px + var(--safe-bottom))' },
+          // Leave room for both the floating FAB and the 60px bottom-nav on mobile.
+          pb: { xs: 'calc(140px + var(--safe-bottom))', sm: 'calc(56px + var(--safe-bottom))' },
         }}
       >
         {children}

@@ -86,15 +86,26 @@ export default function HomePage() {
       <Fab
         color="primary"
         aria-label="Add task"
+        variant="extended"
         onClick={() => setEditing({})}
         sx={{
           position: 'fixed',
           right: 'calc(16px + env(safe-area-inset-right, 0px))',
-          bottom: 'calc(24px + var(--safe-bottom))',
+          // Sit comfortably above the 60px mobile bottom-nav (+ safe area).
+          // On >= sm there is no bottom-nav so we tuck closer to the edge.
+          bottom: {
+            xs: 'calc(76px + var(--safe-bottom))',
+            sm: 'calc(28px + var(--safe-bottom))',
+          },
           boxShadow: '0 6px 18px rgba(15,118,110,0.32)',
+          textTransform: 'none',
+          fontWeight: 600,
+          pl: 1.75,
+          pr: 2.25,
         }}
       >
-        <IconPlus size={22} />
+        <IconPlus size={20} style={{ marginRight: 6 }} />
+        Add task
       </Fab>
 
       <AddTaskDialog
