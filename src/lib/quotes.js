@@ -32,14 +32,21 @@ export function pickQuote(seed = Date.now()) {
 
 /**
  * Async picker that mixes the built-ins with user-added quotes from Dexie.
+ * Favourites are weighted ~3x so the user mostly hears the lines they love.
  * Falls back to the built-in list on any storage error.
  */
 export async function pickQuoteAsync(seed = Date.now()) {
   try {
-    const { getCustomQuotes } = await import('./db');
-    const custom = await getCustomQuotes();
-    const all = custom.length ? [...QUOTES, ...custom] : QUOTES;
-    return all[Math.abs(seed) % all.length];
+    const { getCustomQuotes, getFavoriteQuotes } = await import('./db');
+    const [custom, favs] = await Promise.all([
+      getCustomQuotes(),
+      getFavoriteQuotes(),
+    ]);
+    const base = custom.length ? [...QUOTES, ...custom] : QUOTES;
+    const pool = favs.length
+      ? [...base, ...favs, ...favs] // ~3x weight
+      : base;
+    return pool[Math.abs(seed) % pool.length];
   } catch {
     return pickQuote(seed);
   }

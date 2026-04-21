@@ -6,18 +6,22 @@
  */
 import { useState } from 'react';
 import { Paper, BottomNavigation, BottomNavigationAction, Box } from '@mui/material';
-import { IconHome, IconNotebook, IconQuote, IconSettings } from '@tabler/icons-react';
+import { IconHome, IconNotebook, IconQuote, IconBell } from '@tabler/icons-react';
 import { useRouter, usePathname } from 'next/navigation';
 import SettingsDialog from './SettingsDialog';
-import QuotesDialog from './QuotesDialog';
 
 export default function BottomNav() {
   const router = useRouter();
   const pathname = usePathname();
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [quotesOpen, setQuotesOpen] = useState(false);
 
-  const value = pathname?.startsWith('/journal') ? 'journal' : 'home';
+  const value = pathname?.startsWith('/journal')
+    ? 'journal'
+    : pathname?.startsWith('/quotes')
+      ? 'quotes'
+      : pathname?.startsWith('/notifications')
+        ? 'notifications'
+        : 'home';
 
   return (
     <>
@@ -47,19 +51,22 @@ export default function BottomNav() {
             onChange={(_, v) => {
               if (v === 'home') router.push('/');
               else if (v === 'journal') router.push('/journal');
-              else if (v === 'quotes') setQuotesOpen(true);
-              else if (v === 'settings') setSettingsOpen(true);
+              else if (v === 'quotes') router.push('/quotes');
+              else if (v === 'notifications') router.push('/notifications');
             }}
           >
             <BottomNavigationAction value="home" label="Today" icon={<IconHome size={20} />} />
             <BottomNavigationAction value="journal" label="Journal" icon={<IconNotebook size={20} />} />
             <BottomNavigationAction value="quotes" label="Quotes" icon={<IconQuote size={20} />} />
-            <BottomNavigationAction value="settings" label="Settings" icon={<IconSettings size={20} />} />
+            <BottomNavigationAction
+              value="notifications"
+              label="Alerts"
+              icon={<IconBell size={20} />}
+            />
           </BottomNavigation>
         </Paper>
       </Box>
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      <QuotesDialog open={quotesOpen} onClose={() => setQuotesOpen(false)} />
     </>
   );
 }

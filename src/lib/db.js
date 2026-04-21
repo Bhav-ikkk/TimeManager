@@ -172,6 +172,7 @@ export async function setSetting(key, value) {
 /* ------------------------------------------------------------------ */
 
 const CUSTOM_QUOTES_KEY = 'custom-quotes';
+const FAVORITE_QUOTES_KEY = 'favorite-quotes';
 
 export async function getCustomQuotes() {
   const list = await getSetting(CUSTOM_QUOTES_KEY, []);
@@ -191,4 +192,29 @@ export async function removeCustomQuote(text) {
   const list = await getCustomQuotes();
   const next = list.filter((q) => q !== text);
   await setSetting(CUSTOM_QUOTES_KEY, next);
+  // Also drop from favorites if it was there.
+  const favs = await getFavoriteQuotes();
+  if (favs.includes(text)) {
+    await setSetting(FAVORITE_QUOTES_KEY, favs.filter((q) => q !== text));
+  }
+}
+
+export async function getFavoriteQuotes() {
+  const list = await getSetting(FAVORITE_QUOTES_KEY, []);
+  return Array.isArray(list) ? list : [];
+}
+
+export async function isFavoriteQuote(text) {
+  const favs = await getFavoriteQuotes();
+  return favs.includes(text);
+}
+
+export async function toggleFavoriteQuote(text) {
+  const trimmed = String(text || '').trim();
+  if (!trimmed) return false;
+  const favs = await getFavoriteQuotes();
+  const exists = favs.includes(trimmed);
+  const next = exists ? favs.filter((q) => q !== trimmed) : [...favs, trimmed];
+  await setSetting(FAVORITE_QUOTES_KEY, next);
+  return !exists;
 }
