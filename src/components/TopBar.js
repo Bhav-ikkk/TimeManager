@@ -7,7 +7,7 @@
  */
 import { useState } from 'react';
 import { AppBar, Toolbar, Box, Typography, IconButton, Avatar, Tooltip } from '@mui/material';
-import { IconSun, IconMoon, IconNotebook, IconSettings } from '@tabler/icons-react';
+import { IconSun, IconMoon, IconNotebook, IconSettings, IconBell } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useThemeMode } from '@/app/providers';
 import Logo from './Logo';
@@ -44,6 +44,16 @@ export default function TopBar({ initial = 'B' }) {
             sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
           >
             <IconNotebook size={20} />
+          </IconButton>
+        </Tooltip>
+
+        <Tooltip title="Notifications">
+          <IconButton
+            component={Link}
+            href="/notifications"
+            aria-label="Notification preferences"
+          >
+            <IconBell size={20} />
           </IconButton>
         </Tooltip>
 

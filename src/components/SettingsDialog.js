@@ -17,7 +17,8 @@ import {
   IconButton,
   Chip,
 } from '@mui/material';
-import { IconX } from '@tabler/icons-react';
+import { IconX, IconBell, IconQuote } from '@tabler/icons-react';
+import Link from 'next/link';
 import TimeField from './TimeField';
 import {
   getMorningAlarm,
@@ -98,6 +99,32 @@ export default function SettingsDialog({ open, onClose }) {
             <Typography variant="caption" color="text.secondary">
               A friendly nudge to start the day, sent at this time.
             </Typography>
+          </Stack>
+
+          <Stack spacing={1}>
+            <Typography variant="subtitle2">More</Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Button
+                fullWidth
+                variant="outlined"
+                startIcon={<IconBell size={16} />}
+                component={Link}
+                href="/notifications"
+                onClick={onClose}
+              >
+                Notification preferences
+              </Button>
+              <Button
+                fullWidth
+                variant="outlined"
+                startIcon={<IconQuote size={16} />}
+                component={Link}
+                href="/quotes"
+                onClick={onClose}
+              >
+                Manage quotes
+              </Button>
+            </Stack>
           </Stack>
         </Stack>
       </DialogContent>
