@@ -137,6 +137,23 @@ export async function saveJournal(entry) {
   await db.journal.put({ ...entry, savedAt: Date.now() });
 }
 
+/**
+ * Returns every saved journal entry, newest first. Used by the History
+ * section on the Journal page so past days can be reopened.
+ */
+export async function listJournals() {
+  const db = getDB();
+  if (!db) return [];
+  const rows = await db.journal.toArray();
+  return rows.sort((a, b) => (a.date < b.date ? 1 : -1));
+}
+
+export async function deleteJournal(date) {
+  const db = getDB();
+  if (!db) return;
+  await db.journal.delete(date);
+}
+
 export async function getSetting(key, fallback = null) {
   const db = getDB();
   if (!db) return fallback;
