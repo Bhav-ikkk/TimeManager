@@ -23,8 +23,8 @@
  * by `${dateKey}::${taskId}::${variant}` so duplicates can't pile up. Trigger-
  * based notifications are deduped by `tag` (the SW will replace by tag).
  */
-import { getDB, isTaskOnDate, todayKey, completionId, getCustomQuotes } from './db';
-import { pickQuote, pickQuoteAsync } from './quotes';
+import { getDB, isTaskOnDate, todayKey, completionId, getCustomQuotes, getFavoriteQuotes } from './db';
+import { pickQuote, pickQuoteAsync, QUOTES } from './quotes';
 
 const SW_PATH = '/sw.js';
 
@@ -311,7 +311,14 @@ export async function rescheduleAll() {
 
   // 3. Daily quote nudges (defaults to 3/day, user can edit times in prefs)
   if (prefs.dailyQuotes) {
-    const customs = await getCustomQuotes().catch(() => []);
+    const [customs, favs] = await Promise.all([
+      getCustomQuotes().catch(() => []),
+      getFavoriteQuotes().catch(() => []),
+    ]);
+    // Build a pool that strongly weights favourites, falls back to customs,
+    // then to the built-ins so the user always sees lines they actually like.
+    const base = customs.length ? [...QUOTES, ...customs] : QUOTES;
+    const pool = favs.length ? [...favs, ...favs, ...favs, ...base] : base;
     const times = Array.isArray(prefs.quoteTimes) && prefs.quoteTimes.length
       ? prefs.quoteTimes
       : DEFAULT_QUOTE_TIMES;
@@ -319,14 +326,11 @@ export async function rescheduleAll() {
       const t = times[i];
       const at = timeStringToToday(t);
       if (!at || at.getTime() <= now.getTime()) continue;
-      // Prefer the user's own quotes when they exist.
       const seed = at.getTime() + i * 991;
-      const body = customs.length
-        ? customs[Math.abs(seed) % customs.length]
-        : await pickQuoteAsync(seed);
+      const body = pool[Math.abs(seed) % pool.length];
       await scheduleAt({
         when: at,
-        title: 'Quote for you',
+        title: favs.length ? 'A line for you' : 'Quote for you',
         body,
         tag: `quote-${dateKey}-${i}`,
         key: `quote::${dateKey}::${i}`,
