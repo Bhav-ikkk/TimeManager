@@ -16,6 +16,7 @@ import SkeletonList from '@/components/SkeletonList';
 import TaskRow from '@/components/TaskRow';
 import AddTaskDialog from '@/components/AddTaskDialog';
 import PermissionBanner from '@/components/PermissionBanner';
+import HeroCover from '@/components/HeroCover';
 import { useToday } from '@/hooks/useToday';
 import { setCompletion } from '@/lib/db';
 import { rescheduleAll } from '@/lib/notifications';
@@ -31,19 +32,7 @@ export default function HomePage() {
   return (
     <AppShell initial="B">
       <Stack spacing={3}>
-        <Box>
-          <Typography variant="overline" color="text.secondary">
-            {format(today, 'EEEE, d MMMM')}
-          </Typography>
-          <Typography variant="h4" sx={{ mt: 0.25 }}>
-            Today
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            {total === 0
-              ? 'No tasks scheduled. Add the first one to start your day.'
-              : `${done} of ${total} done${done === total ? ' — perfectly executed.' : ''}`}
-          </Typography>
-        </Box>
+        <HeroCover total={total} done={done} date={today} />
 
         <PermissionBanner />
 
