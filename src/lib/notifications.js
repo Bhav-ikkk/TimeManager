@@ -2,29 +2,47 @@
  * src/lib/notifications.js
  * Reminder scheduler for TauntTable.
  *
- * How it works
- * ------------
- * We keep scheduling lightweight and 100% client-side — no servers, no Push API,
- * no paid services. On every app load (and on every task edit) we:
+ * Reliability strategy
+ * --------------------
+ * Web Notifications without a paid push service are inherently best-effort.
+ * To get them as close to "always on time" as possible we combine three
+ * mechanisms, in order of preference:
  *
- *   1. Make sure the service worker is registered (so notifications can fire
- *      even if the tab is briefly backgrounded).
- *   2. Read today's tasks from Dexie.
- *   3. For each task whose reminder time is still in the future today and
- *      hasn't been completed, queue a setTimeout that asks the SW to show
- *      a notification.
- *   4. Also queue the user's "morning alarm" — a daily wake-up nudge that
- *      shows the day's first task.
+ *   1. **TimestampTrigger** (Chrome / Edge with Notification Triggers).
+ *      We hand the OS a future timestamp via `showNotification({ showTrigger })`
+ *      and the browser fires it at that exact time even if the tab is closed.
  *
- * Re-scheduling is cheap and idempotent. We track timer IDs in a module-level
- * Map keyed by `${dateKey}::${taskId}` so duplicates can't pile up.
+ *   2. **setTimeout** queued in the foreground page. Works while the page is
+ *      open or briefly backgrounded.
+ *
+ *   3. A fresh reschedule on every visibilitychange / focus / online event,
+ *      and at midnight, so we catch up immediately when the user reopens
+ *      the app.
+ *
+ * Re-scheduling is idempotent. We track timer IDs in a module-level Map keyed
+ * by `${dateKey}::${taskId}::${variant}` so duplicates can't pile up. Trigger-
+ * based notifications are deduped by `tag` (the SW will replace by tag).
  */
-import { getDB, isTaskOnDate, todayKey, completionId } from './db';
+import { getDB, isTaskOnDate, todayKey, completionId, getCustomQuotes } from './db';
 import { pickQuote, pickQuoteAsync } from './quotes';
 
 const SW_PATH = '/sw.js';
+
+// Settings keys
 const MORNING_ALARM_KEY = 'morning-alarm-time'; // "HH:mm"
+const PREFS_KEY = 'notification-prefs';
+
 const DEFAULT_MORNING_ALARM = '07:00';
+
+// Default daily quote times (when the user has the "daily quotes" toggle on).
+export const DEFAULT_QUOTE_TIMES = ['08:30', '13:30', '20:30'];
+
+export const DEFAULT_PREFS = {
+  taskReminders: true,
+  morningAlarm: true,
+  dailyQuotes: true,
+  quoteTimes: DEFAULT_QUOTE_TIMES,
+};
 
 /** taskKey -> setTimeout id  */
 const timers = new Map();
@@ -51,8 +69,7 @@ export async function requestNotificationPermission() {
   if (Notification.permission === 'granted') return 'granted';
   if (Notification.permission === 'denied') return 'denied';
   try {
-    const result = await Notification.requestPermission();
-    return result;
+    return await Notification.requestPermission();
   } catch {
     return 'denied';
   }
@@ -73,11 +90,19 @@ async function ensureServiceWorker() {
   }
 }
 
+function triggersSupported() {
+  return (
+    typeof window !== 'undefined' &&
+    'Notification' in window &&
+    'showTrigger' in Notification.prototype
+  );
+}
+
 /* -------------------------------------------------------------------------- */
 /* Showing a notification                                                      */
 /* -------------------------------------------------------------------------- */
 
-async function showNotification({ title, body, tag }) {
+async function showNotificationNow({ title, body, tag }) {
   if (!notificationsSupported() || Notification.permission !== 'granted') return;
   const reg = await ensureServiceWorker();
   const payload = {
@@ -88,7 +113,6 @@ async function showNotification({ title, body, tag }) {
     icon: '/icons/icon-192.png',
     badge: '/icons/favicon-32.png',
   };
-  // Prefer SW (works even when tab is briefly backgrounded).
   if (reg && navigator.serviceWorker.controller) {
     navigator.serviceWorker.controller.postMessage(payload);
     return;
@@ -106,12 +130,87 @@ async function showNotification({ title, body, tag }) {
       /* fall through */
     }
   }
-  // Last-resort foreground notification.
   try {
     new Notification(title, { body, tag, icon: payload.icon });
   } catch {
     /* ignore */
   }
+}
+
+/**
+ * Schedule a single notification at `when`. Uses TimestampTrigger if available
+ * (survives the tab being closed). Otherwise falls back to a foreground timer.
+ */
+async function scheduleAt({ when, title, body, tag, key }) {
+  if (!notificationsSupported() || Notification.permission !== 'granted') return;
+  const reg = await ensureServiceWorker();
+  const delta = when.getTime() - Date.now();
+  if (delta <= 0) return;
+
+  if (triggersSupported() && reg) {
+    try {
+      // eslint-disable-next-line no-undef
+      const trigger = new TimestampTrigger(when.getTime());
+      await reg.showNotification(title, {
+        body,
+        tag,
+        icon: '/icons/icon-192.png',
+        badge: '/icons/favicon-32.png',
+        showTrigger: trigger,
+        data: { url: '/' },
+      });
+      return; // OS will fire it.
+    } catch {
+      /* fall back to setTimeout */
+    }
+  }
+
+  const handle = setTimeout(() => {
+    showNotificationNow({ title, body, tag });
+    timers.delete(key);
+  }, Math.min(delta, 0x7fffffff));
+  timers.set(key, handle);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Settings                                                                    */
+/* -------------------------------------------------------------------------- */
+
+export async function getMorningAlarm() {
+  const db = getDB();
+  if (!db) return DEFAULT_MORNING_ALARM;
+  const row = await db.settings.get(MORNING_ALARM_KEY);
+  return row?.value || DEFAULT_MORNING_ALARM;
+}
+
+export async function setMorningAlarm(hhmm) {
+  const db = getDB();
+  if (!db) return;
+  await db.settings.put({ key: MORNING_ALARM_KEY, value: hhmm });
+  await rescheduleAll();
+}
+
+export async function getNotificationPrefs() {
+  const db = getDB();
+  if (!db) return { ...DEFAULT_PREFS };
+  const row = await db.settings.get(PREFS_KEY);
+  const stored = row?.value || {};
+  return {
+    ...DEFAULT_PREFS,
+    ...stored,
+    quoteTimes: Array.isArray(stored.quoteTimes) && stored.quoteTimes.length
+      ? stored.quoteTimes
+      : DEFAULT_QUOTE_TIMES,
+  };
+}
+
+export async function setNotificationPrefs(patch) {
+  const db = getDB();
+  if (!db) return;
+  const current = await getNotificationPrefs();
+  const next = { ...current, ...patch };
+  await db.settings.put({ key: PREFS_KEY, value: next });
+  await rescheduleAll();
 }
 
 /* -------------------------------------------------------------------------- */
@@ -123,10 +222,22 @@ function clearAllTimers() {
   timers.clear();
 }
 
-function timeStringToToday(hhmm) {
-  const [h, m] = hhmm.split(':').map((n) => parseInt(n, 10));
+async function clearTriggeredNotifications() {
+  if (!triggersSupported()) return;
+  const reg = await ensureServiceWorker();
+  if (!reg) return;
+  try {
+    const list = await reg.getNotifications({ includeTriggered: true });
+    for (const n of list) n.close();
+  } catch {
+    /* ignore */
+  }
+}
+
+function timeStringToToday(hhmm, baseDate = new Date()) {
+  const [h, m] = String(hhmm || '').split(':').map((n) => parseInt(n, 10));
   if (Number.isNaN(h) || Number.isNaN(m)) return null;
-  const d = new Date();
+  const d = new Date(baseDate);
   d.setHours(h, m, 0, 0);
   return d;
 }
@@ -140,57 +251,104 @@ async function getCompletionsForToday(dateKey) {
 
 export async function rescheduleAll() {
   if (!notificationsSupported()) return;
+  if (Notification.permission !== 'granted') {
+    clearAllTimers();
+    return;
+  }
+
   clearAllTimers();
-  if (Notification.permission !== 'granted') return;
+  await clearTriggeredNotifications();
 
   const db = getDB();
   if (!db) return;
 
+  const prefs = await getNotificationPrefs();
   const now = new Date();
   const dateKey = todayKey(now);
   const allTasks = await db.tasks.toArray();
   const todays = allTasks.filter((t) => isTaskOnDate(t, now));
   const doneSet = await getCompletionsForToday(dateKey);
 
-  for (const task of todays) {
-    if (doneSet.has(task.id)) continue;
-    const at = timeStringToToday(task.time);
-    if (!at) continue;
-    const delta = at.getTime() - now.getTime();
-    if (delta <= 0) continue; // already passed
-
-    const key = completionId(dateKey, task.id);
-    const handle = setTimeout(async () => {
-      const body = await pickQuoteAsync(task.id + at.getTime()).catch(() => pickQuote(task.id + at.getTime()));
-      showNotification({
+  // 1. Task reminders
+  if (prefs.taskReminders) {
+    for (const task of todays) {
+      if (doneSet.has(task.id)) continue;
+      const at = timeStringToToday(task.time);
+      if (!at) continue;
+      if (at.getTime() <= now.getTime()) continue;
+      const key = completionId(dateKey, task.id);
+      const body = await pickQuoteAsync(task.id + at.getTime()).catch(() =>
+        pickQuote(task.id + at.getTime())
+      );
+      await scheduleAt({
+        when: at,
         title: task.title,
         body,
-        tag: key,
+        tag: `task-${key}`,
+        key: `task::${key}`,
       });
-      timers.delete(key);
-    }, Math.min(delta, 0x7fffffff)); // setTimeout max
-    timers.set(key, handle);
+    }
   }
 
-  // Morning alarm
-  const morningTime = (await db.settings.get(MORNING_ALARM_KEY))?.value || DEFAULT_MORNING_ALARM;
-  const morningAt = timeStringToToday(morningTime);
-  if (morningAt && morningAt.getTime() > now.getTime()) {
-    const key = `morning::${dateKey}`;
-    const handle = setTimeout(() => {
+  // 2. Morning alarm
+  if (prefs.morningAlarm) {
+    const morningTime = await getMorningAlarm();
+    const morningAt = timeStringToToday(morningTime);
+    if (morningAt && morningAt.getTime() > now.getTime()) {
       const first = todays.slice().sort((a, b) => (a.time < b.time ? -1 : 1))[0];
       const body = first
         ? `First up: ${first.time} — ${first.title}.`
         : 'Open TauntTable and plan your day.';
-      showNotification({
+      await scheduleAt({
+        when: morningAt,
         title: 'Good morning. Plan your day.',
         body,
-        tag: key,
+        tag: `morning-${dateKey}`,
+        key: `morning::${dateKey}`,
       });
-      timers.delete(key);
-    }, morningAt.getTime() - now.getTime());
-    timers.set(key, handle);
+    }
   }
+
+  // 3. Daily quote nudges (defaults to 3/day, user can edit times in prefs)
+  if (prefs.dailyQuotes) {
+    const customs = await getCustomQuotes().catch(() => []);
+    const times = Array.isArray(prefs.quoteTimes) && prefs.quoteTimes.length
+      ? prefs.quoteTimes
+      : DEFAULT_QUOTE_TIMES;
+    for (let i = 0; i < times.length; i++) {
+      const t = times[i];
+      const at = timeStringToToday(t);
+      if (!at || at.getTime() <= now.getTime()) continue;
+      // Prefer the user's own quotes when they exist.
+      const seed = at.getTime() + i * 991;
+      const body = customs.length
+        ? customs[Math.abs(seed) % customs.length]
+        : await pickQuoteAsync(seed);
+      await scheduleAt({
+        when: at,
+        title: 'Quote for you',
+        body,
+        tag: `quote-${dateKey}-${i}`,
+        key: `quote::${dateKey}::${i}`,
+      });
+    }
+  }
+}
+
+/** Fire a one-off notification immediately so the user can verify the wiring. */
+export async function sendTestNotification() {
+  if (!notificationsSupported()) return 'unsupported';
+  if (Notification.permission !== 'granted') {
+    const next = await requestNotificationPermission();
+    if (next !== 'granted') return next;
+  }
+  const body = await pickQuoteAsync(Date.now()).catch(() => pickQuote(Date.now()));
+  await showNotificationNow({
+    title: 'TauntTable test',
+    body,
+    tag: `test-${Date.now()}`,
+  });
+  return 'granted';
 }
 
 /* -------------------------------------------------------------------------- */
@@ -207,18 +365,22 @@ export async function bootstrapNotifications() {
 
   await ensureServiceWorker();
 
-  // Re-run the schedule when the tab becomes visible again (e.g. PWA reopen).
+  // Re-run the schedule whenever the app comes back to the foreground or
+  // regains focus / network. Each event is cheap because timers are cleared
+  // and rebuilt from the current Dexie state.
+  const reschedule = () => rescheduleAll().catch(() => {});
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      rescheduleAll().catch(() => {});
-    }
+    if (document.visibilityState === 'visible') reschedule();
   });
+  window.addEventListener('focus', reschedule);
+  window.addEventListener('online', reschedule);
+  window.addEventListener('pageshow', reschedule);
 
-  // At midnight, redo the schedule for the new day.
+  // At midnight, rebuild for the new day.
   function armMidnight() {
     const now = new Date();
     const next = new Date(now);
-    next.setHours(24, 0, 5, 0); // 5s after midnight
+    next.setHours(24, 0, 5, 0);
     midnightTimer = setTimeout(async () => {
       await rescheduleAll();
       armMidnight();
@@ -229,20 +391,7 @@ export async function bootstrapNotifications() {
   await rescheduleAll();
 }
 
-/* -------------------------------------------------------------------------- */
-/* Settings helpers                                                            */
-/* -------------------------------------------------------------------------- */
-
-export async function getMorningAlarm() {
-  const db = getDB();
-  if (!db) return DEFAULT_MORNING_ALARM;
-  const row = await db.settings.get(MORNING_ALARM_KEY);
-  return row?.value || DEFAULT_MORNING_ALARM;
-}
-
-export async function setMorningAlarm(hhmm) {
-  const db = getDB();
-  if (!db) return;
-  await db.settings.put({ key: MORNING_ALARM_KEY, value: hhmm });
-  await rescheduleAll();
+// Test entry-point for hot-reload — keep midnightTimer reference alive.
+export function _midnightTimerHandle() {
+  return midnightTimer;
 }
