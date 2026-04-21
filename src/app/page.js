@@ -7,9 +7,8 @@
  * "Add task" button that opens the editor (wired in the next commit).
  */
 import { useState } from 'react';
-import { Stack, Typography, Box, Button, Fab } from '@mui/material';
+import { Stack, Button, Fab } from '@mui/material';
 import { IconPlus, IconCalendarTime } from '@tabler/icons-react';
-import { format } from 'date-fns';
 import AppShell from '@/components/AppShell';
 import EmptyState from '@/components/EmptyState';
 import SkeletonList from '@/components/SkeletonList';
