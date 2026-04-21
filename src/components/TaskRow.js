@@ -34,26 +34,34 @@ export default function TaskRow({ task, completed, onToggle, onEdit }) {
           sx={{ p: 0.5 }}
         />
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Stack direction="row" spacing={1} sx={{ mb: 0.25, alignItems: 'center' }}>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ mb: 0.25, alignItems: 'baseline', flexWrap: 'wrap', rowGap: 0.25 }}
+          >
             <Typography
               variant="subtitle2"
-              sx={{ fontVariantNumeric: 'tabular-nums', color: 'primary.main' }}
+              sx={{ fontVariantNumeric: 'tabular-nums', color: 'primary.main', flexShrink: 0 }}
             >
               {task.time}
             </Typography>
             <Typography
               variant="subtitle1"
-              noWrap
               sx={{
                 fontWeight: 600,
                 textDecoration: completed ? 'line-through' : 'none',
                 color: 'text.primary',
+                flex: 1,
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
               }}
             >
               {task.title}
             </Typography>
           </Stack>
-          <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 0.75 }}>
+          <Stack direction="row" sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 0.75 }}>
             <Chip
               size="small"
               icon={recurring ? <IconRepeat size={12} /> : undefined}
@@ -61,7 +69,17 @@ export default function TaskRow({ task, completed, onToggle, onEdit }) {
               variant="outlined"
             />
             {task.note ? (
-              <Typography variant="caption" color="text.secondary" noWrap>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{
+                  flex: 1,
+                  minWidth: 0,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
                 {task.note}
               </Typography>
             ) : null}

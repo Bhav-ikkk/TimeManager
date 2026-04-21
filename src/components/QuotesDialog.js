@@ -70,7 +70,11 @@ export default function QuotesDialog({ open, onClose }) {
         <Stack spacing={2.5}>
           <Stack spacing={1}>
             <Typography variant="subtitle2">Add a new line</Typography>
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
+            <Stack
+              direction={{ xs: 'column', sm: 'row' }}
+              spacing={1}
+              sx={{ alignItems: { xs: 'stretch', sm: 'flex-start' } }}
+            >
               <TextField
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
@@ -85,7 +89,7 @@ export default function QuotesDialog({ open, onClose }) {
                 onClick={handleAdd}
                 disabled={busy || !draft.trim()}
                 startIcon={<IconPlus size={16} />}
-                sx={{ flexShrink: 0 }}
+                sx={{ flexShrink: 0, alignSelf: { xs: 'stretch', sm: 'auto' } }}
               >
                 Add
               </Button>
