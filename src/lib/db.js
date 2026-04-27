@@ -82,6 +82,13 @@ export function completionId(date, taskId) {
 
 /** True when `task` is scheduled to appear on the given JS Date. */
 export function isTaskOnDate(task, date) {
+  // A task can't be "missed" before it existed — don't backfill it onto past
+  // dates that predate its creation.
+  if (typeof task.createdAt === 'number') {
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+    if (task.createdAt > endOfDay.getTime()) return false;
+  }
   if (Array.isArray(task.days) && task.days.length > 0) {
     return task.days.includes(date.getDay());
   }

@@ -73,11 +73,16 @@ export default function AddTaskDialog({ open, initial, onClose }) {
     }
     setBusy(true);
     try {
+      // Preserve the original one-off date when editing so saving an old one-off
+      // task doesn't silently move it to today.
+      const oneOffDate = days.length === 0
+        ? (isEdit && initial?.dateOneOff ? initial.dateOneOff : todayKey())
+        : null;
       const payload = {
         title: cleanTitle,
         time,
         days,
-        dateOneOff: days.length === 0 ? todayKey() : null,
+        dateOneOff: oneOffDate,
         note: note.trim().slice(0, MAX_NOTE),
       };
       if (isEdit) {
