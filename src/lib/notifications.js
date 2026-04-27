@@ -23,7 +23,16 @@
  * by `${dateKey}::${taskId}::${variant}` so duplicates can't pile up. Trigger-
  * based notifications are deduped by `tag` (the SW will replace by tag).
  */
-import { getDB, isTaskOnDate, todayKey, completionId, getCustomQuotes, getFavoriteQuotes } from './db';
+import {
+  getDB,
+  isTaskOnDate,
+  todayKey,
+  completionId,
+  getCustomQuotes,
+  getFavoriteQuotes,
+  putPendingNotification,
+  clearAllPendingNotifications,
+} from './db';
 import { pickQuote, pickQuoteAsync, QUOTES } from './quotes';
 
 const SW_PATH = '/sw.js';
@@ -138,8 +147,13 @@ async function showNotificationNow({ title, body, tag }) {
 }
 
 /**
- * Schedule a single notification at `when`. Uses TimestampTrigger if available
- * (survives the tab being closed). Otherwise falls back to a foreground timer.
+ * Schedule a single notification at `when`.
+ *
+ * Reliability layers (each adds an independent chance of firing):
+ *   - Persist to the IDB `pending` store so the service worker can fire it
+ *     even when the page is closed (read on periodicsync / sync / SW wake).
+ *   - TimestampTrigger if the browser supports it (currently rare).
+ *   - In-page setTimeout while the tab is open.
  */
 async function scheduleAt({ when, title, body, tag, key }) {
   if (!notificationsSupported() || Notification.permission !== 'granted') return;
@@ -147,6 +161,22 @@ async function scheduleAt({ when, title, body, tag, key }) {
   const delta = when.getTime() - Date.now();
   if (delta <= 0) return;
 
+  // Layer 1 — persist for the SW to fire while the page is closed.
+  try {
+    await putPendingNotification({
+      id: key,
+      when: when.getTime(),
+      title,
+      body,
+      tag,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/favicon-32.png',
+    });
+  } catch {
+    /* ignore */
+  }
+
+  // Layer 2 — TimestampTrigger (Chrome experimental, rarely available).
   if (triggersSupported() && reg) {
     try {
       // eslint-disable-next-line no-undef
@@ -157,14 +187,14 @@ async function scheduleAt({ when, title, body, tag, key }) {
         icon: '/icons/icon-192.png',
         badge: '/icons/favicon-32.png',
         showTrigger: trigger,
-        data: { url: '/' },
+        data: { url: '/', pendingId: key },
       });
-      return; // OS will fire it.
     } catch {
-      /* fall back to setTimeout */
+      /* ignore */
     }
   }
 
+  // Layer 3 — in-page timer (works while the tab is open).
   const handle = setTimeout(() => {
     showNotificationNow({ title, body, tag });
     timers.delete(key);
@@ -242,12 +272,14 @@ function timeStringToToday(hhmm, baseDate = new Date()) {
   return d;
 }
 
-async function getCompletionsForToday(dateKey) {
+async function getCompletionsForDate(dateKey) {
   const db = getDB();
   if (!db) return new Set();
   const rows = await db.completions.where('date').equals(dateKey).toArray();
   return new Set(rows.map((r) => r.taskId));
 }
+
+const SCHEDULE_DAYS_AHEAD = 7;
 
 export async function rescheduleAll() {
   if (!notificationsSupported()) return;
@@ -258,84 +290,101 @@ export async function rescheduleAll() {
 
   clearAllTimers();
   await clearTriggeredNotifications();
+  // Wipe stale pending entries — we are about to rewrite them fresh.
+  await clearAllPendingNotifications().catch(() => {});
 
   const db = getDB();
   if (!db) return;
 
   const prefs = await getNotificationPrefs();
   const now = new Date();
-  const dateKey = todayKey(now);
   const allTasks = await db.tasks.toArray();
-  const todays = allTasks.filter((t) => isTaskOnDate(t, now));
-  const doneSet = await getCompletionsForToday(dateKey);
+  const [customs, favs] = await Promise.all([
+    getCustomQuotes().catch(() => []),
+    getFavoriteQuotes().catch(() => []),
+  ]);
+  const quoteBase = customs.length ? [...QUOTES, ...customs] : QUOTES;
+  const quotePool = favs.length ? [...favs, ...favs, ...favs, ...quoteBase] : quoteBase;
+  const morningTime = await getMorningAlarm();
 
-  // 1. Task reminders
-  if (prefs.taskReminders) {
-    for (const task of todays) {
-      if (doneSet.has(task.id)) continue;
-      const at = timeStringToToday(task.time);
-      if (!at) continue;
-      if (at.getTime() <= now.getTime()) continue;
-      const key = completionId(dateKey, task.id);
-      const body = await pickQuoteAsync(task.id + at.getTime()).catch(() =>
-        pickQuote(task.id + at.getTime())
-      );
-      await scheduleAt({
-        when: at,
-        title: task.title,
-        body,
-        tag: `task-${key}`,
-        key: `task::${key}`,
-      });
+  // Schedule today + the next N days so the SW can fire reminders for several
+  // days even if the page is never reopened.
+  for (let offset = 0; offset < SCHEDULE_DAYS_AHEAD; offset++) {
+    const day = new Date(now);
+    day.setDate(day.getDate() + offset);
+    day.setHours(0, 0, 0, 0);
+    const dateKey = todayKey(day);
+    const dayTasks = allTasks.filter((t) => isTaskOnDate(t, day));
+    const doneSet = await getCompletionsForDate(dateKey);
+
+    // 1. Task reminders
+    if (prefs.taskReminders) {
+      for (const task of dayTasks) {
+        if (doneSet.has(task.id)) continue;
+        const at = timeStringToToday(task.time, day);
+        if (!at) continue;
+        if (at.getTime() <= now.getTime()) continue;
+        const key = completionId(dateKey, task.id);
+        const body = await pickQuoteAsync(task.id + at.getTime()).catch(() =>
+          pickQuote(task.id + at.getTime())
+        );
+        await scheduleAt({
+          when: at,
+          title: task.title,
+          body,
+          tag: `task-${key}`,
+          key: `task::${key}`,
+        });
+      }
+    }
+
+    // 2. Morning alarm
+    if (prefs.morningAlarm) {
+      const morningAt = timeStringToToday(morningTime, day);
+      if (morningAt && morningAt.getTime() > now.getTime()) {
+        const first = dayTasks.slice().sort((a, b) => (a.time < b.time ? -1 : 1))[0];
+        const body = first
+          ? `First up: ${first.time} — ${first.title}.`
+          : 'Open TauntTable and plan your day.';
+        await scheduleAt({
+          when: morningAt,
+          title: 'Good morning. Plan your day.',
+          body,
+          tag: `morning-${dateKey}`,
+          key: `morning::${dateKey}`,
+        });
+      }
+    }
+
+    // 3. Daily quote nudges
+    if (prefs.dailyQuotes) {
+      const times = Array.isArray(prefs.quoteTimes) && prefs.quoteTimes.length
+        ? prefs.quoteTimes
+        : DEFAULT_QUOTE_TIMES;
+      for (let i = 0; i < times.length; i++) {
+        const at = timeStringToToday(times[i], day);
+        if (!at || at.getTime() <= now.getTime()) continue;
+        const seed = at.getTime() + i * 991;
+        const body = quotePool[Math.abs(seed) % quotePool.length];
+        await scheduleAt({
+          when: at,
+          title: favs.length ? 'A line for you' : 'Quote for you',
+          body,
+          tag: `quote-${dateKey}-${i}`,
+          key: `quote::${dateKey}::${i}`,
+        });
+      }
     }
   }
 
-  // 2. Morning alarm
-  if (prefs.morningAlarm) {
-    const morningTime = await getMorningAlarm();
-    const morningAt = timeStringToToday(morningTime);
-    if (morningAt && morningAt.getTime() > now.getTime()) {
-      const first = todays.slice().sort((a, b) => (a.time < b.time ? -1 : 1))[0];
-      const body = first
-        ? `First up: ${first.time} — ${first.title}.`
-        : 'Open TauntTable and plan your day.';
-      await scheduleAt({
-        when: morningAt,
-        title: 'Good morning. Plan your day.',
-        body,
-        tag: `morning-${dateKey}`,
-        key: `morning::${dateKey}`,
-      });
+  // Tell the SW to refresh its in-memory schedule so it can fire entries
+  // without waiting for periodic sync.
+  try {
+    if (navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'tt-pending-refresh' });
     }
-  }
-
-  // 3. Daily quote nudges (defaults to 3/day, user can edit times in prefs)
-  if (prefs.dailyQuotes) {
-    const [customs, favs] = await Promise.all([
-      getCustomQuotes().catch(() => []),
-      getFavoriteQuotes().catch(() => []),
-    ]);
-    // Build a pool that strongly weights favourites, falls back to customs,
-    // then to the built-ins so the user always sees lines they actually like.
-    const base = customs.length ? [...QUOTES, ...customs] : QUOTES;
-    const pool = favs.length ? [...favs, ...favs, ...favs, ...base] : base;
-    const times = Array.isArray(prefs.quoteTimes) && prefs.quoteTimes.length
-      ? prefs.quoteTimes
-      : DEFAULT_QUOTE_TIMES;
-    for (let i = 0; i < times.length; i++) {
-      const t = times[i];
-      const at = timeStringToToday(t);
-      if (!at || at.getTime() <= now.getTime()) continue;
-      const seed = at.getTime() + i * 991;
-      const body = pool[Math.abs(seed) % pool.length];
-      await scheduleAt({
-        when: at,
-        title: favs.length ? 'A line for you' : 'Quote for you',
-        body,
-        tag: `quote-${dateKey}-${i}`,
-        key: `quote::${dateKey}::${i}`,
-      });
-    }
+  } catch {
+    /* ignore */
   }
 }
 
@@ -362,12 +411,72 @@ export async function sendTestNotification() {
 let bootstrapped = false;
 let midnightTimer = null;
 
+async function tryRegisterPeriodicSync(reg) {
+  if (!reg || !('periodicSync' in reg)) return false;
+  try {
+    // permissions API is the canonical way to check.
+    if (navigator.permissions && navigator.permissions.query) {
+      const status = await navigator.permissions.query({
+        name: 'periodic-background-sync',
+      });
+      if (status.state !== 'granted') return false;
+    }
+    await reg.periodicSync.register('tt-fire-due', {
+      // Browser ignores values it considers too small; 15 min is the typical
+      // lower bound it will respect when the heuristics align.
+      minInterval: 15 * 60 * 1000,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function tryRegisterOneShotSync(reg) {
+  if (!reg || !('sync' in reg)) return false;
+  try {
+    await reg.sync.register('tt-fire-due');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Reports which background-wake mechanisms are actually live, so we can be
+ * honest in the UI about how reliable on-time delivery is going to be.
+ */
+export async function getDeliveryCapabilities() {
+  const out = {
+    triggers: triggersSupported(),
+    periodicSync: false,
+    sync: false,
+  };
+  if (!notificationsSupported()) return out;
+  const reg = await ensureServiceWorker();
+  if (!reg) return out;
+  out.sync = 'sync' in reg;
+  if ('periodicSync' in reg && navigator.permissions?.query) {
+    try {
+      const status = await navigator.permissions.query({
+        name: 'periodic-background-sync',
+      });
+      out.periodicSync = status.state === 'granted';
+    } catch {
+      /* ignore */
+    }
+  }
+  return out;
+}
+
 export async function bootstrapNotifications() {
   if (typeof window === 'undefined') return;
   if (bootstrapped) return;
   bootstrapped = true;
 
-  await ensureServiceWorker();
+  const reg = await ensureServiceWorker();
+  await tryRegisterPeriodicSync(reg);
+  await tryRegisterOneShotSync(reg);
 
   // Re-run the schedule whenever the app comes back to the foreground or
   // regains focus / network. Each event is cheap because timers are cleared

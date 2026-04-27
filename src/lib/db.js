@@ -44,6 +44,15 @@ class TauntDB extends Dexie {
       journal: 'date',
       settings: 'key',
     });
+    // v2: add a "pending" store the service worker can read directly while
+    // the page is closed, so scheduled reminders still fire on mobile.
+    this.version(2).stores({
+      tasks: '++id, time, createdAt',
+      completions: 'id, taskId, date',
+      journal: 'date',
+      settings: 'key',
+      pending: 'id, when, tag',
+    });
   }
 }
 
@@ -217,4 +226,95 @@ export async function toggleFavoriteQuote(text) {
   const next = exists ? favs.filter((q) => q !== trimmed) : [...favs, trimmed];
   await setSetting(FAVORITE_QUOTES_KEY, next);
   return !exists;
+}
+
+/* ------------------------------------------------------------------ */
+/* Pending notifications (read by the service worker while page is closed) */
+/* ------------------------------------------------------------------ */
+
+export async function putPendingNotification(entry) {
+  const db = getDB();
+  if (!db) return;
+  await db.pending.put(entry);
+}
+
+export async function deletePendingNotification(id) {
+  const db = getDB();
+  if (!db) return;
+  await db.pending.delete(id);
+}
+
+export async function clearPendingNotificationsByPrefix(prefix) {
+  const db = getDB();
+  if (!db) return;
+  const all = await db.pending.toArray();
+  const ids = all.filter((e) => typeof e.id === 'string' && e.id.startsWith(prefix)).map((e) => e.id);
+  if (ids.length) await db.pending.bulkDelete(ids);
+}
+
+export async function clearAllPendingNotifications() {
+  const db = getDB();
+  if (!db) return;
+  await db.pending.clear();
+}
+
+/* ------------------------------------------------------------------ */
+/* Range stats — used by the Summary page                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * For every day in [startDate, endDate] (inclusive), compute scheduled vs
+ * completed counts. Returns an array of { dateKey, scheduled, completed,
+ * missed, tasks: [{ id, title, time, completed }] } ordered ascending.
+ */
+export async function getRangeStats(startDate, endDate) {
+  const db = getDB();
+  if (!db) return [];
+  const allTasks = await db.tasks.toArray();
+  const start = new Date(startDate);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(endDate);
+  end.setHours(0, 0, 0, 0);
+  if (end < start) return [];
+
+  const days = [];
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    days.push(new Date(d));
+  }
+  const startKey = todayKey(start);
+  const endKey = todayKey(end);
+
+  const completions = await db.completions
+    .where('date')
+    .between(startKey, endKey, true, true)
+    .toArray();
+  const doneByDate = new Map();
+  for (const c of completions) {
+    if (!doneByDate.has(c.date)) doneByDate.set(c.date, new Set());
+    doneByDate.get(c.date).add(c.taskId);
+  }
+
+  return days.map((d) => {
+    const key = todayKey(d);
+    const scheduled = allTasks.filter((t) => isTaskOnDate(t, d));
+    const doneSet = doneByDate.get(key) || new Set();
+    const tasks = scheduled
+      .slice()
+      .sort((a, b) => (a.time < b.time ? -1 : 1))
+      .map((t) => ({
+        id: t.id,
+        title: t.title,
+        time: t.time,
+        completed: doneSet.has(t.id),
+      }));
+    const completed = tasks.filter((t) => t.completed).length;
+    return {
+      dateKey: key,
+      date: d,
+      scheduled: scheduled.length,
+      completed,
+      missed: scheduled.length - completed,
+      tasks,
+    };
+  });
 }

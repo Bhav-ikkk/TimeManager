@@ -43,6 +43,7 @@ import {
   rescheduleAll,
   getMorningAlarm,
   setMorningAlarm,
+  getDeliveryCapabilities,
   DEFAULT_QUOTE_TIMES,
 } from '@/lib/notifications';
 
@@ -54,11 +55,13 @@ export default function NotificationsPage() {
   const [morning, setMorning] = useState('07:00');
   const [busy, setBusy] = useState(false);
   const [testStatus, setTestStatus] = useState(null);
+  const [caps, setCaps] = useState(null);
 
   useEffect(() => {
     getNotificationPrefs().then(setPrefs).catch(() => setPrefs({ ...{} }));
     getMorningAlarm().then(setMorning).catch(() => {});
     setPerm(notificationStatus());
+    getDeliveryCapabilities().then(setCaps).catch(() => {});
   }, []);
 
   async function update(patch) {
@@ -159,6 +162,24 @@ export default function NotificationsPage() {
             Notifications are on. {testStatus === 'granted' ? 'Test sent — check your tray.' : ''}
           </Alert>
         )}
+
+        {granted && caps ? (
+          <Alert
+            severity={caps.periodicSync ? 'success' : 'info'}
+            sx={{ '& .MuiAlert-message': { width: '100%' } }}
+          >
+            <Typography variant="subtitle2" sx={{ mb: 0.25 }}>
+              {caps.periodicSync
+                ? 'Background delivery is active'
+                : 'Background delivery is best-effort'}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+              {caps.periodicSync
+                ? 'Your phone will wake TauntTable in the background to fire reminders even when the app is closed.'
+                : 'For the most reliable on-time reminders when the app is closed, install TauntTable to your home screen (Add to Home Screen / Install app) and open it from there at least once. The browser then grants periodic background sync.'}
+            </Typography>
+          </Alert>
+        ) : null}
 
         {prefs ? (
           <>
