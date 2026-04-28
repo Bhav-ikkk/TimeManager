@@ -35,7 +35,10 @@ export default function HeroCover({ name = 'you', total = 0, done = 0, date = ne
     return () => {
       cancelled = true;
     };
-  }, [date]);
+    // Depend on the day-of-month, not the Date object itself, so we don't
+    // re-fetch the quote every render when the parent passes `new Date()`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date.getFullYear(), date.getMonth(), date.getDate()]);
 
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   const allDone = total > 0 && done === total;

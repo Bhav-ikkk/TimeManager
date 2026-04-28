@@ -6,7 +6,7 @@
  * Shows the day's tasks sorted by time, lets you check them off, and exposes an
  * "Add task" button that opens the editor (wired in the next commit).
  */
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Stack, Button, Fab } from '@mui/material';
 import { IconPlus, IconCalendarTime } from '@tabler/icons-react';
 import AppShell from '@/components/AppShell';
@@ -21,7 +21,9 @@ import { setCompletion } from '@/lib/db';
 import { rescheduleAll } from '@/lib/notifications';
 
 export default function HomePage() {
-  const today = new Date();
+  // Stable reference — a fresh `new Date()` every render would re-run every
+  // child effect that depends on it (HeroCover's quote pick, useToday).
+  const today = useMemo(() => new Date(), []);
   const { loading, tasks, isDone, dateKey } = useToday(today);
   const [editing, setEditing] = useState(null);
 
