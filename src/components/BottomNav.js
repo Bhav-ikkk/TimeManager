@@ -49,7 +49,24 @@ export default function BottomNav() {
           <BottomNavigation
             value={value}
             showLabels
-            sx={{ bgcolor: 'transparent', height: 60 }}
+            sx={{
+              bgcolor: 'transparent',
+              height: 60,
+              // Five items get squeezed on narrow phones — shrink labels and
+              // padding so nothing wraps or clips.
+              '& .MuiBottomNavigationAction-root': {
+                minWidth: 0,
+                padding: '6px 4px',
+              },
+              '& .MuiBottomNavigationAction-label': {
+                fontSize: '0.7rem',
+                lineHeight: 1.1,
+                marginTop: '2px',
+              },
+              '& .MuiBottomNavigationAction-label.Mui-selected': {
+                fontSize: '0.72rem',
+              },
+            }}
             onChange={(_, v) => {
               if (v === 'home') router.push('/');
               else if (v === 'journal') router.push('/journal');

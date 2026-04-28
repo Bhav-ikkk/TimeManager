@@ -13,6 +13,7 @@ import {
   notificationsSupported,
   requestNotificationPermission,
   rescheduleAll,
+  bootstrapNotifications,
 } from '@/lib/notifications';
 
 export default function PermissionBanner() {
@@ -31,7 +32,13 @@ export default function PermissionBanner() {
   async function enable() {
     const next = await requestNotificationPermission();
     setStatus(next);
-    if (next === 'granted') await rescheduleAll();
+    if (next === 'granted') {
+      // bootstrap registers the SW + sync hooks (no-op if already done) and
+      // rescheduleAll fills the on-device queue. Order matters because some
+      // delivery paths require the SW to be active.
+      await bootstrapNotifications().catch(() => {});
+      await rescheduleAll().catch(() => {});
+    }
   }
 
   return (
