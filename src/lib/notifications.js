@@ -78,7 +78,15 @@ export async function requestNotificationPermission() {
   if (Notification.permission === 'granted') return 'granted';
   if (Notification.permission === 'denied') return 'denied';
   try {
-    return await Notification.requestPermission();
+    const next = await Notification.requestPermission();
+    if (next === 'granted') {
+      // The bootstrap may have skipped sync registration earlier when we
+      // didn't have permission yet — try again now that we do.
+      const reg = await ensureServiceWorker();
+      await tryRegisterPeriodicSync(reg);
+      await tryRegisterOneShotSync(reg);
+    }
+    return next;
   } catch {
     return 'denied';
   }
@@ -114,33 +122,37 @@ function triggersSupported() {
 async function showNotificationNow({ title, body, tag }) {
   if (!notificationsSupported() || Notification.permission !== 'granted') return;
   const reg = await ensureServiceWorker();
-  const payload = {
-    type: 'show-notification',
-    title,
-    body,
-    tag,
-    icon: '/icons/icon-192.png',
-    badge: '/icons/favicon-32.png',
-  };
-  if (reg && navigator.serviceWorker.controller) {
-    navigator.serviceWorker.controller.postMessage(payload);
-    return;
-  }
+  const icon = '/icons/icon-192.png';
+  const badge = '/icons/favicon-32.png';
+  // Prefer reg.showNotification — works whether or not the SW is currently
+  // controlling the page (controller is null on first ever load until the
+  // page is reloaded, so postMessage silently fails in that window).
   if (reg) {
     try {
       await reg.showNotification(title, {
         body,
         tag,
-        icon: payload.icon,
-        badge: payload.badge,
+        icon,
+        badge,
+        renotify: true,
+        data: { url: '/' },
       });
       return;
     } catch {
       /* fall through */
     }
   }
+  // Last resort — page-level Notification constructor.
   try {
-    new Notification(title, { body, tag, icon: payload.icon });
+    new Notification(title, { body, tag, icon });
+  } catch {
+    /* ignore */
+  }
+  // Best-effort wake to the SW so it also re-checks pending entries.
+  try {
+    if (navigator.serviceWorker?.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'tt-pending-refresh' });
+    }
   } catch {
     /* ignore */
   }
@@ -195,6 +207,10 @@ async function scheduleAt({ when, title, body, tag, key }) {
   }
 
   // Layer 3 — in-page timer (works while the tab is open).
+  // Clear any previous timer for this key so duplicates can't pile up if
+  // the user re-opens the app and we re-schedule before the old timer fired.
+  const prev = timers.get(key);
+  if (prev) clearTimeout(prev);
   const handle = setTimeout(() => {
     showNotificationNow({ title, body, tag });
     timers.delete(key);
