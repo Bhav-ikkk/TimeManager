@@ -41,6 +41,7 @@ import {
   requestNotificationPermission,
   sendTestNotification,
   rescheduleAll,
+  bootstrapNotifications,
   getMorningAlarm,
   setMorningAlarm,
   getDeliveryCapabilities,
@@ -88,12 +89,17 @@ export default function NotificationsPage() {
     const next = { ...(prefs || {}), ...patch };
     setPrefs(next);
     await setNotificationPrefs(patch);
+    refreshUpcoming();
   }
 
   async function enable() {
     const next = await requestNotificationPermission();
     setPerm(next);
-    if (next === 'granted') await rescheduleAll();
+    if (next === 'granted') {
+      await bootstrapNotifications().catch(() => {});
+      await rescheduleAll().catch(() => {});
+      refreshUpcoming();
+    }
   }
 
   async function handleTest() {

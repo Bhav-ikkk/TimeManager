@@ -52,6 +52,7 @@ export default function TopBar({ initial = 'B' }) {
             component={Link}
             href="/calories"
             aria-label="Open calorie tracker"
+            sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
           >
             <IconApple size={20} />
           </IconButton>
@@ -62,6 +63,7 @@ export default function TopBar({ initial = 'B' }) {
             component={Link}
             href="/summary"
             aria-label="Open summary"
+            sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
           >
             <IconChartBar size={20} />
           </IconButton>
