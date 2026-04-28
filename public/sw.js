@@ -20,7 +20,9 @@
 
 const DB_NAME = 'taunttable';
 const DB_STORE = 'pending';
-const GRACE_AFTER_MS = 6 * 60 * 60 * 1000; // skip entries older than 6h
+// Skip entries older than 90 minutes — if the device was off for hours we
+// don't want to dump the entire backlog into the user's tray at once.
+const GRACE_AFTER_MS = 90 * 60 * 1000;
 const LOOK_AHEAD_MS = 60 * 1000;            // fire up to 1 minute early
 
 let armedTimer = null;
@@ -210,6 +212,10 @@ self.addEventListener('message', (event) => {
     event.waitUntil(fireDue());
     return;
   }
+  if (data.type === 'tt-skip-waiting') {
+    self.skipWaiting();
+    return;
+  }
   if (data.type === 'ping') {
     event.source && event.source.postMessage({ type: 'pong' });
   }
@@ -222,10 +228,15 @@ self.addEventListener('notificationclick', (event) => {
     (async () => {
       const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       for (const client of all) {
-        if ('focus' in client) {
-          client.navigate(targetUrl).catch(() => {});
-          return client.focus();
-        }
+        try {
+          // Same-origin only — navigate the existing window.
+          const url = new URL(client.url);
+          if (url.origin === self.location.origin) {
+            await client.focus();
+            try { await client.navigate(targetUrl); } catch (_) { /* ignore */ }
+            return;
+          }
+        } catch (_) { /* ignore */ }
       }
       if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
       return null;
