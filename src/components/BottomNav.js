@@ -6,7 +6,7 @@
  */
 import { useState } from 'react';
 import { Paper, BottomNavigation, BottomNavigationAction, Box } from '@mui/material';
-import { IconHome, IconNotebook, IconQuote, IconChartBar } from '@tabler/icons-react';
+import { IconHome, IconNotebook, IconQuote, IconChartBar, IconApple } from '@tabler/icons-react';
 import { useRouter, usePathname } from 'next/navigation';
 import SettingsDialog from './SettingsDialog';
 
@@ -21,7 +21,9 @@ export default function BottomNav() {
       ? 'quotes'
       : pathname?.startsWith('/summary')
         ? 'summary'
-        : 'home';
+        : pathname?.startsWith('/calories')
+          ? 'calories'
+          : 'home';
 
   return (
     <>
@@ -53,11 +55,13 @@ export default function BottomNav() {
               else if (v === 'journal') router.push('/journal');
               else if (v === 'quotes') router.push('/quotes');
               else if (v === 'summary') router.push('/summary');
+              else if (v === 'calories') router.push('/calories');
             }}
           >
             <BottomNavigationAction value="home" label="Today" icon={<IconHome size={20} />} />
-            <BottomNavigationAction value="journal" label="Journal" icon={<IconNotebook size={20} />} />
+            <BottomNavigationAction value="calories" label="Calories" icon={<IconApple size={20} />} />
             <BottomNavigationAction value="summary" label="Summary" icon={<IconChartBar size={20} />} />
+            <BottomNavigationAction value="journal" label="Journal" icon={<IconNotebook size={20} />} />
             <BottomNavigationAction value="quotes" label="Quotes" icon={<IconQuote size={20} />} />
           </BottomNavigation>
         </Paper>
