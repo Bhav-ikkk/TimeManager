@@ -53,6 +53,20 @@ class TauntDB extends Dexie {
       settings: 'key',
       pending: 'id, when, tag',
     });
+    // v3: calorie tracker.
+    //   foodEntries  one row per food item the user logs in a day
+    //   foodReports  one Gemini-generated analysis per period
+    //                id is the period key: 'day-2026-04-28', 'week-2026-W17',
+    //                'month-2026-04'.
+    this.version(3).stores({
+      tasks: '++id, time, createdAt',
+      completions: 'id, taskId, date',
+      journal: 'date',
+      settings: 'key',
+      pending: 'id, when, tag',
+      foodEntries: '++id, date, at',
+      foodReports: 'id, kind, startDate, endDate, savedAt',
+    });
   }
 }
 
@@ -263,6 +277,90 @@ export async function clearAllPendingNotifications() {
   const db = getDB();
   if (!db) return;
   await db.pending.clear();
+}
+
+/* ------------------------------------------------------------------ */
+/* Calorie tracker                                                     */
+/* ------------------------------------------------------------------ */
+
+export async function addFoodEntry({ date, at, text, kcalEst = null, grams = null }) {
+  const db = getDB();
+  if (!db) return null;
+  const cleanText = String(text || '').trim().slice(0, 240);
+  if (!cleanText) return null;
+  const id = await db.foodEntries.add({
+    date: date || todayKey(),
+    at: typeof at === 'number' ? at : Date.now(),
+    text: cleanText,
+    kcalEst,
+    grams,
+  });
+  return id;
+}
+
+export async function updateFoodEntry(id, patch) {
+  const db = getDB();
+  if (!db) return 0;
+  const safe = {};
+  if (typeof patch.text === 'string') safe.text = patch.text.trim().slice(0, 240);
+  if (typeof patch.at === 'number') safe.at = patch.at;
+  if (typeof patch.date === 'string') safe.date = patch.date;
+  if (patch.kcalEst === null || typeof patch.kcalEst === 'number') safe.kcalEst = patch.kcalEst;
+  if (patch.grams === null || typeof patch.grams === 'number') safe.grams = patch.grams;
+  return db.foodEntries.update(id, safe);
+}
+
+export async function deleteFoodEntry(id) {
+  const db = getDB();
+  if (!db) return;
+  await db.foodEntries.delete(id);
+}
+
+export async function listFoodEntriesForDate(date) {
+  const db = getDB();
+  if (!db) return [];
+  const rows = await db.foodEntries.where('date').equals(date).toArray();
+  return rows.sort((a, b) => (a.at || 0) - (b.at || 0));
+}
+
+export async function listFoodEntriesBetween(startDate, endDate) {
+  const db = getDB();
+  if (!db) return [];
+  const rows = await db.foodEntries
+    .where('date')
+    .between(startDate, endDate, true, true)
+    .toArray();
+  return rows.sort((a, b) => {
+    if (a.date === b.date) return (a.at || 0) - (b.at || 0);
+    return a.date < b.date ? -1 : 1;
+  });
+}
+
+export async function saveFoodReport(report) {
+  const db = getDB();
+  if (!db) return;
+  await db.foodReports.put({ ...report, savedAt: Date.now() });
+}
+
+export async function getFoodReport(id) {
+  const db = getDB();
+  if (!db) return null;
+  return db.foodReports.get(id);
+}
+
+export async function listFoodReports(kind) {
+  const db = getDB();
+  if (!db) return [];
+  const rows = kind
+    ? await db.foodReports.where('kind').equals(kind).toArray()
+    : await db.foodReports.toArray();
+  return rows.sort((a, b) => (a.startDate < b.startDate ? 1 : -1));
+}
+
+export async function deleteFoodReport(id) {
+  const db = getDB();
+  if (!db) return;
+  await db.foodReports.delete(id);
 }
 
 /* ------------------------------------------------------------------ */
