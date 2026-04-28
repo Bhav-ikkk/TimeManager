@@ -46,6 +46,8 @@ import {
   getDeliveryCapabilities,
   DEFAULT_QUOTE_TIMES,
 } from '@/lib/notifications';
+import { getDB } from '@/lib/db';
+import { format } from 'date-fns';
 
 const MAX_QUOTE_TIMES = 6;
 
@@ -56,12 +58,30 @@ export default function NotificationsPage() {
   const [busy, setBusy] = useState(false);
   const [testStatus, setTestStatus] = useState(null);
   const [caps, setCaps] = useState(null);
+  const [upcoming, setUpcoming] = useState([]);
+
+  async function refreshUpcoming() {
+    try {
+      const db = getDB();
+      if (!db) return;
+      const all = await db.pending.toArray();
+      const now = Date.now();
+      const next = all
+        .filter((e) => typeof e.when === 'number' && e.when > now)
+        .sort((a, b) => a.when - b.when)
+        .slice(0, 6);
+      setUpcoming(next);
+    } catch {
+      setUpcoming([]);
+    }
+  }
 
   useEffect(() => {
     getNotificationPrefs().then(setPrefs).catch(() => setPrefs({ ...{} }));
     getMorningAlarm().then(setMorning).catch(() => {});
     setPerm(notificationStatus());
     getDeliveryCapabilities().then(setCaps).catch(() => {});
+    refreshUpcoming();
   }, []);
 
   async function update(patch) {
@@ -257,6 +277,32 @@ export default function NotificationsPage() {
 
             <Divider sx={{ opacity: 0.4 }} />
 
+            {granted && upcoming.length ? (
+              <Card sx={{ p: 2 }}>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  Next scheduled reminders
+                </Typography>
+                <Stack spacing={0.75}>
+                  {upcoming.map((u) => (
+                    <Stack key={u.id} direction="row" spacing={1} sx={{ alignItems: 'baseline' }}>
+                      <Typography
+                        variant="caption"
+                        sx={{ fontVariantNumeric: 'tabular-nums', color: 'primary.main', minWidth: 110 }}
+                      >
+                        {format(new Date(u.when), 'EEE d MMM, HH:mm')}
+                      </Typography>
+                      <Typography variant="body2" sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {u.title}
+                      </Typography>
+                    </Stack>
+                  ))}
+                </Stack>
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  Pulled live from on-device storage. If something looks wrong, edit the task or click Reschedule.
+                </Typography>
+              </Card>
+            ) : null}
+
             <Card sx={{ p: 2 }}>
               <Stack
                 direction={{ xs: 'column', sm: 'row' }}
@@ -273,7 +319,10 @@ export default function NotificationsPage() {
                   <Button
                     variant="outlined"
                     startIcon={<IconRefresh size={16} />}
-                    onClick={() => rescheduleAll().catch(() => {})}
+                    onClick={async () => {
+                      await rescheduleAll().catch(() => {});
+                      refreshUpcoming();
+                    }}
                   >
                     Reschedule
                   </Button>
