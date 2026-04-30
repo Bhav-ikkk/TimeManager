@@ -283,7 +283,17 @@ export async function clearAllPendingNotifications() {
 /* Calorie tracker                                                     */
 /* ------------------------------------------------------------------ */
 
-export async function addFoodEntry({ date, at, text, kcalEst = null, grams = null }) {
+export async function addFoodEntry({
+  date,
+  at,
+  text,
+  kcalEst = null,
+  grams = null,
+  fdcId = null,
+  brand = null,
+  nutrition = null, // { kcal, protein_g, fat_g, carbs_g, fiber_g, sugar_g, sodium_mg }
+  source = 'text',  // 'text' | 'usda' | 'manual'
+}) {
   const db = getDB();
   if (!db) return null;
   const cleanText = String(text || '').trim().slice(0, 240);
@@ -294,6 +304,10 @@ export async function addFoodEntry({ date, at, text, kcalEst = null, grams = nul
     text: cleanText,
     kcalEst,
     grams,
+    fdcId,
+    brand,
+    nutrition,
+    source,
   });
   return id;
 }
@@ -307,6 +321,10 @@ export async function updateFoodEntry(id, patch) {
   if (typeof patch.date === 'string') safe.date = patch.date;
   if (patch.kcalEst === null || typeof patch.kcalEst === 'number') safe.kcalEst = patch.kcalEst;
   if (patch.grams === null || typeof patch.grams === 'number') safe.grams = patch.grams;
+  if (patch.fdcId === null || typeof patch.fdcId === 'number') safe.fdcId = patch.fdcId;
+  if (patch.brand === null || typeof patch.brand === 'string') safe.brand = patch.brand;
+  if (patch.nutrition === null || (patch.nutrition && typeof patch.nutrition === 'object')) safe.nutrition = patch.nutrition;
+  if (typeof patch.source === 'string') safe.source = patch.source;
   return db.foodEntries.update(id, safe);
 }
 

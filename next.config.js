@@ -19,7 +19,7 @@ const nextConfig = {
       "font-src 'self' data:",
       "style-src 'self' 'unsafe-inline'",
       "script-src 'self' 'unsafe-inline'",
-      "connect-src 'self' https://generativelanguage.googleapis.com",
+      "connect-src 'self' https://generativelanguage.googleapis.com https://api.groq.com https://openrouter.ai https://api.nal.usda.gov",
       "worker-src 'self'",
       "manifest-src 'self'",
       "upgrade-insecure-requests",

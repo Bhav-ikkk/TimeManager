@@ -1,16 +1,14 @@
 /**
  * src/lib/calories.js
  *
- * BYOK (bring-your-own-key) Gemini-powered calorie analysis.
+ * BYOK (bring-your-own-key) calorie analysis with provider choice
+ * (Groq / Gemini / OpenRouter). Keys live in IndexedDB and are sent
+ * directly to the provider — never to a server we control.
  *
- * Why local-only: the user's API key is *their* secret. We never ship it to
- * a server, never log it, never include it in a default header. It lives in
- * IndexedDB (Dexie `settings` store) and is sent only as a query param to
- * Google's Generative Language endpoint when the user explicitly clicks
- * "Run analysis".
- *
- * The Gemini prompt is intentionally strict and judgemental — the user
- * asked for an honest dietitian, not a cheerleader.
+ * The dietitian prompt is intentionally strict and judgemental — the
+ * user asked for an honest dietitian, not a cheerleader. We also pass
+ * USDA-grounded nutrition for any item the user added via product
+ * search, so totals are accurate before the model even runs.
  */
 import {
   getSetting,
@@ -22,28 +20,46 @@ import {
   getFoodReport,
   todayKey,
 } from './db';
+import { callAI, PROVIDERS } from './aiProviders';
 
-/* ----- profile + api key ----------------------------------------------- */
+/* ----- profile + provider config -------------------------------------- */
 
 const PROFILE_KEY = 'calorie-profile';
-const API_KEY_KEY = 'gemini-api-key';
-const MODEL_KEY = 'gemini-model';
+const PROVIDER_KEY = 'ai-provider';
+const API_KEYS_KEY = 'ai-api-keys'; // { groq, gemini, openrouter }
+const MODELS_KEY = 'ai-models';     // { groq, gemini, openrouter }
 
-const DEFAULT_MODEL = 'gemini-2.5-flash';
+// Legacy single-key storage (kept for migration).
+const LEGACY_GEMINI_KEY = 'gemini-api-key';
+const LEGACY_GEMINI_MODEL = 'gemini-model';
 
 export const DEFAULT_PROFILE = {
   name: '',
-  gender: 'male',         // 'male' | 'female' | 'other'
+  gender: 'male',          // 'male' | 'female' | 'other'
   age: 25,
   heightCm: 175,
   weightKg: 70,
   goalWeightKg: 65,
-  activity: 'light',      // 'sedentary' | 'light' | 'moderate' | 'active' | 'athlete'
-  goal: 'cut',            // 'cut' | 'maintain' | 'bulk'
+  activity: 'light',       // sedentary | light | moderate | active | athlete
+  goal: 'cut',             // cut | maintain | bulk
+  diet: 'omnivore',        // omnivore | vegetarian | vegan | eggetarian | jain | pescatarian | keto
+  cuisinePref: '',         // e.g. "North Indian, Italian"
+  location: '',            // free text: city, country
+  allergies: '',           // comma-separated
   dailyCalorieTarget: 2000,
   proteinTargetG: 130,
-  dietaryNotes: '',       // allergies, vegetarian, etc.
+  dietaryNotes: '',
 };
+
+export const DIET_OPTIONS = [
+  { value: 'omnivore', label: 'Omnivore (everything)' },
+  { value: 'vegetarian', label: 'Vegetarian (no meat/fish)' },
+  { value: 'eggetarian', label: 'Eggetarian (veg + eggs)' },
+  { value: 'vegan', label: 'Vegan (no animal products)' },
+  { value: 'jain', label: 'Jain (no roots/onion/garlic)' },
+  { value: 'pescatarian', label: 'Pescatarian (veg + fish)' },
+  { value: 'keto', label: 'Keto / low-carb' },
+];
 
 export async function getCalorieProfile() {
   const stored = await getSetting(PROFILE_KEY, null);
@@ -57,35 +73,82 @@ export async function setCalorieProfile(patch) {
   return next;
 }
 
+/* ----- provider + per-provider key/model ------------------------------ */
+
+export async function getProvider() {
+  const v = await getSetting(PROVIDER_KEY, '');
+  if (v && PROVIDERS[v]) return v;
+  // Migrate: if legacy gemini key exists, default to gemini.
+  const legacy = await getSetting(LEGACY_GEMINI_KEY, '');
+  if (legacy) return 'gemini';
+  return 'groq';
+}
+
+export async function setProvider(p) {
+  if (!PROVIDERS[p]) throw new Error(`Unknown provider: ${p}`);
+  await setSetting(PROVIDER_KEY, p);
+}
+
+async function getKeysMap() {
+  const stored = (await getSetting(API_KEYS_KEY, null)) || {};
+  if (!stored.gemini) {
+    const legacy = await getSetting(LEGACY_GEMINI_KEY, '');
+    if (legacy) stored.gemini = legacy;
+  }
+  return stored;
+}
+
+async function getModelsMap() {
+  const stored = (await getSetting(MODELS_KEY, null)) || {};
+  if (!stored.gemini) {
+    const legacyModel = await getSetting(LEGACY_GEMINI_MODEL, '');
+    if (legacyModel) stored.gemini = legacyModel;
+  }
+  return stored;
+}
+
+export async function getApiKey(provider) {
+  const map = await getKeysMap();
+  return String(map[provider] || '');
+}
+
+export async function setApiKey(provider, key) {
+  const map = await getKeysMap();
+  map[provider] = String(key || '').trim();
+  await setSetting(API_KEYS_KEY, map);
+}
+
+export async function getModel(provider) {
+  const map = await getModelsMap();
+  return map[provider] || PROVIDERS[provider]?.defaultModel || '';
+}
+
+export async function setModel(provider, model) {
+  const map = await getModelsMap();
+  map[provider] = String(model || PROVIDERS[provider]?.defaultModel || '');
+  await setSetting(MODELS_KEY, map);
+}
+
+/** Resolved active config: { provider, key, model }. */
+export async function getActiveAIConfig() {
+  const provider = await getProvider();
+  const [key, model] = await Promise.all([getApiKey(provider), getModel(provider)]);
+  return { provider, key, model: model || PROVIDERS[provider].defaultModel };
+}
+
+/* ----- Legacy alias (any caller asking "is a key set?") --------------- */
+
 export async function getGeminiKey() {
-  const v = await getSetting(API_KEY_KEY, '');
-  return typeof v === 'string' ? v : '';
+  const cfg = await getActiveAIConfig();
+  return cfg.key;
 }
 
-export async function setGeminiKey(key) {
-  await setSetting(API_KEY_KEY, String(key || '').trim());
-}
+export { maskKey } from './aiProviders';
 
-export async function getGeminiModel() {
-  const v = await getSetting(MODEL_KEY, DEFAULT_MODEL);
-  return v || DEFAULT_MODEL;
-}
-
-export async function setGeminiModel(model) {
-  await setSetting(MODEL_KEY, String(model || DEFAULT_MODEL));
-}
-
-export function maskKey(key) {
-  if (!key) return '';
-  if (key.length <= 8) return '•'.repeat(key.length);
-  return `${key.slice(0, 4)}…${key.slice(-4)}`;
-}
-
-/* ----- BMR / TDEE estimation (used as a sanity floor / display) -------- */
+/* ----- BMR / TDEE estimation ------------------------------------------ */
 
 export function estimateBMR(profile) {
   const { gender, age, heightCm, weightKg } = profile;
-  // Mifflin-St Jeor.
   const base = 10 * weightKg + 6.25 * heightCm - 5 * age;
   if (gender === 'female') return Math.round(base - 161);
   return Math.round(base + 5);
@@ -113,44 +176,67 @@ export function suggestDailyTarget(profile) {
 
 /* ----- Period helpers --------------------------------------------------- */
 
-export function dayReportId(dateKey) {
-  return `day-${dateKey}`;
+export function dayReportId(dateKey) { return `day-${dateKey}`; }
+export function weekReportId(startKey, endKey) { return `week-${startKey}_${endKey}`; }
+export function monthReportId(startKey) { return `month-${startKey.slice(0, 7)}`; }
+
+/* ----- Pre-aggregated nutrition from USDA-tagged entries -------------- */
+
+function preAggregate(entries) {
+  const totals = {
+    kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0,
+    fiber_g: 0, sugar_g: 0, sodium_mg: 0,
+  };
+  let grounded = 0;
+  for (const e of entries) {
+    if (e.nutrition && typeof e.nutrition === 'object') {
+      for (const k of Object.keys(totals)) {
+        if (typeof e.nutrition[k] === 'number') totals[k] += e.nutrition[k];
+      }
+      grounded += 1;
+    }
+  }
+  return { totals, groundedCount: grounded };
 }
 
-export function weekReportId(startKey, endKey) {
-  return `week-${startKey}_${endKey}`;
+function describeEntry(e) {
+  const time = new Date(e.at).toTimeString().slice(0, 5);
+  if (e.nutrition && e.fdcId) {
+    const n = e.nutrition;
+    return `[${time}] ${e.text}${e.brand ? ` (${e.brand})` : ''} — USDA fdc:${e.fdcId}, ${e.grams || '?'}g, ${Math.round(n.kcal || 0)} kcal, P${Math.round(n.protein_g || 0)} C${Math.round(n.carbs_g || 0)} F${Math.round(n.fat_g || 0)}`;
+  }
+  return `[${time}] ${e.text}`;
 }
 
-export function monthReportId(startKey) {
-  // startKey is yyyy-MM-01
-  return `month-${startKey.slice(0, 7)}`;
-}
+/* ----- Prompts -------------------------------------------------------- */
 
-/* ----- Gemini call ----------------------------------------------------- */
-
-const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
-
-function strictDailyPrompt(profile, dateKey, entries) {
+function strictDailyPrompt(profile, dateKey, entries, preTotals) {
+  const grounded = preTotals.groundedCount;
   return `You are an experienced, no-nonsense clinical dietitian.
 The user is logging what they ate today and wants an honest, evidence-based
 daily report. Do NOT sugarcoat. Do NOT moralise. Be specific, numerical,
 and direct. If the data is too sparse to be confident, say so.
 
-User profile:
+User profile (respect diet, allergies and cuisine preferences strictly):
 ${JSON.stringify(profile, null, 2)}
 
 Date: ${dateKey}
 
-Food log (free text, in the order eaten):
-${entries.map((e, i) => `${i + 1}. [${new Date(e.at).toTimeString().slice(0, 5)}] ${e.text}`).join('\n') || '(no entries)'}
+Food log (in the order eaten). Items tagged with "USDA fdc:" already have
+verified nutrition — use those numbers verbatim and only estimate the rest:
+${entries.map((e, i) => `${i + 1}. ${describeEntry(e)}`).join('\n') || '(no entries)'}
 
-Estimate calories and macros conservatively when portions are vague — pick
-a reasonable middle estimate, never a flattering low one. Treat homemade
-Indian/Asian portions as larger than menu defaults unless the user says
-otherwise.
+${grounded > 0 ? `Pre-computed totals from ${grounded} USDA-grounded entries (these are already correct — only ADD free-text estimates ON TOP, do not double-count):
+${JSON.stringify(preTotals.totals, null, 2)}` : 'No USDA-grounded items in this log; estimate everything conservatively.'}
+
+Estimation rules:
+- Treat homemade Indian/Asian portions as larger than menu defaults unless the user says otherwise.
+- Account for the user's location (${profile.location || 'unspecified'}) when guessing typical portion sizes and cuisine.
+- If profile.diet excludes a food the user logged, flag it explicitly in riskFlags.
+- Pick a reasonable middle estimate, never a flattering low one.
 
 Reply ONLY with a single JSON object, no prose around it, matching this
-TypeScript type exactly:
+TypeScript type EXACTLY:
 
 type DayReport = {
   totalCalories: number;
@@ -160,22 +246,24 @@ type DayReport = {
   fiber_g: number;
   sugar_g: number;
   sodium_mg: number;
-  items: { name: string; qty: string; kcal: number; protein_g: number; carbs_g: number; fat_g: number }[];
-  targetCalories: number;        // from profile.dailyCalorieTarget
-  surplusOrDeficit: number;      // totalCalories - targetCalories
+  items: { name: string; qty: string; kcal: number; protein_g: number; carbs_g: number; fat_g: number; source: 'usda' | 'estimate' }[];
+  targetCalories: number;
+  surplusOrDeficit: number;
   proteinTargetG: number;
-  proteinGap: number;            // proteinTargetG - protein_g
+  proteinGap: number;
   goalAlignment: 'aligned' | 'off-track' | 'badly-off-track';
-  verdict: string;               // 2-4 sentences. Strict, plain, honest.
-  riskFlags: string[];           // e.g. "very low protein", "ultra-processed >50% calories"
-  improvements: string[];        // 3-6 concrete next-meal suggestions
+  verdict: string;
+  riskFlags: string[];
+  improvements: string[];
+  mealSuggestions: { meal: 'breakfast' | 'lunch' | 'snack' | 'dinner'; idea: string; approxKcal: number; protein_g: number }[];
 };`;
 }
 
 function strictRangePrompt(profile, kind, startKey, endKey, entries, savedDailyReports) {
   return `You are an experienced, no-nonsense clinical dietitian writing a
 ${kind} report for the user. Be honest, specific, and brief. Compare
-performance to their stated goal weight and daily calorie target.
+performance to their stated goal weight and daily calorie target. Respect
+the user's diet (${profile.diet}) and allergies (${profile.allergies || 'none'}).
 
 User profile:
 ${JSON.stringify(profile, null, 2)}
@@ -186,7 +274,7 @@ Daily reports already produced for days in this range (may be partial):
 ${JSON.stringify(savedDailyReports, null, 2)}
 
 Raw food entries for the range (in case some days were never analysed):
-${entries.map((e) => `[${e.date} ${new Date(e.at).toTimeString().slice(0, 5)}] ${e.text}`).join('\n') || '(none)'}
+${entries.map((e) => `[${e.date}] ${describeEntry(e)}`).join('\n') || '(none)'}
 
 Reply ONLY with a single JSON object, no prose, matching:
 
@@ -197,59 +285,29 @@ type RangeReport = {
   daysCovered: number;
   daysLogged: number;
   avgCaloriesPerLoggedDay: number;
-  estimatedWeightChangeKg: number;   // negative = lost. Use 7700 kcal ≈ 1 kg fat.
+  avgProteinPerLoggedDay: number;
+  estimatedWeightChangeKg: number;
   goalProgress: 'on-track' | 'slow' | 'off-track' | 'reversing';
   bestDay: { date: string; reason: string } | null;
   worstDay: { date: string; reason: string } | null;
-  patterns: string[];                // e.g. "skips breakfast on weekdays"
-  verdict: string;                   // 3-6 sentences. Strict. No flattery.
-  nextWeekPlan: string[];            // 4-8 concrete actions for the next period
+  patterns: string[];
+  verdict: string;
+  nextWeekPlan: string[];
+  weeklyMealPlan: { day: string; breakfast: string; lunch: string; snack: string; dinner: string; approxKcal: number }[];
 };`;
 }
 
-async function callGemini({ prompt, key, model }) {
-  if (!key) throw new Error('No API key configured. Add it in Calorie settings.');
-  const url = `${ENDPOINT}/${encodeURIComponent(model || DEFAULT_MODEL)}:generateContent?key=${encodeURIComponent(key)}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.2,
-        responseMimeType: 'application/json',
-      },
-    }),
-  });
-  if (!res.ok) {
-    let detail = '';
-    try { detail = (await res.text()).slice(0, 400); } catch (_) { /* ignore */ }
-    throw new Error(`Gemini ${res.status}: ${detail || res.statusText}`);
-  }
-  const json = await res.json();
-  const text = json?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || '';
-  if (!text) throw new Error('Gemini returned an empty response.');
-  // Be defensive — even with responseMimeType:application/json the model
-  // sometimes wraps the payload in fences.
-  const cleaned = text.trim().replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
-  try {
-    return JSON.parse(cleaned);
-  } catch (e) {
-    throw new Error('Gemini returned non-JSON text. Try again.');
-  }
-}
-
-/* ----- Public analysis API --------------------------------------------- */
+/* ----- Public analysis API -------------------------------------------- */
 
 export async function analyseDay(dateKey = todayKey()) {
-  const [profile, key, model, entries] = await Promise.all([
+  const [profile, cfg, entries] = await Promise.all([
     getCalorieProfile(),
-    getGeminiKey(),
-    getGeminiModel(),
+    getActiveAIConfig(),
     listFoodEntriesForDate(dateKey),
   ]);
-  const prompt = strictDailyPrompt(profile, dateKey, entries);
-  const json = await callGemini({ prompt, key, model });
+  const pre = preAggregate(entries);
+  const prompt = strictDailyPrompt(profile, dateKey, entries, pre);
+  const json = await callAI({ ...cfg, prompt });
   const id = dayReportId(dateKey);
   const report = {
     id,
@@ -258,6 +316,8 @@ export async function analyseDay(dateKey = todayKey()) {
     endDate: dateKey,
     json,
     profileSnapshot: profile,
+    provider: cfg.provider,
+    model: cfg.model,
     entryCount: entries.length,
   };
   await saveFoodReport(report);
@@ -266,10 +326,9 @@ export async function analyseDay(dateKey = todayKey()) {
 
 export async function analyseRange(kind, startKey, endKey) {
   if (!['week', 'month'].includes(kind)) throw new Error('Unsupported range kind');
-  const [profile, key, model, entries, allReports] = await Promise.all([
+  const [profile, cfg, entries, allReports] = await Promise.all([
     getCalorieProfile(),
-    getGeminiKey(),
-    getGeminiModel(),
+    getActiveAIConfig(),
     listFoodEntriesBetween(startKey, endKey),
     listFoodReports('day'),
   ]);
@@ -277,7 +336,7 @@ export async function analyseRange(kind, startKey, endKey) {
     .filter((r) => r.startDate >= startKey && r.startDate <= endKey)
     .map((r) => ({ date: r.startDate, json: r.json }));
   const prompt = strictRangePrompt(profile, kind, startKey, endKey, entries, dailyReports);
-  const json = await callGemini({ prompt, key, model });
+  const json = await callAI({ ...cfg, prompt });
   const id = kind === 'week'
     ? weekReportId(startKey, endKey)
     : monthReportId(startKey);
@@ -288,6 +347,8 @@ export async function analyseRange(kind, startKey, endKey) {
     endDate: endKey,
     json,
     profileSnapshot: profile,
+    provider: cfg.provider,
+    model: cfg.model,
     entryCount: entries.length,
   };
   await saveFoodReport(report);
