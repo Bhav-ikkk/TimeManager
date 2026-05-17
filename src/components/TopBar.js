@@ -10,11 +10,13 @@ import { AppBar, Toolbar, Box, Typography, IconButton, Avatar, Tooltip } from '@
 import { IconSun, IconMoon, IconNotebook, IconSettings, IconBell, IconChartBar, IconApple } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useThemeMode } from '@/app/providers';
+import { useDietFeatureEnabled } from '@/hooks/useDietFeatureEnabled';
 import Logo from './Logo';
 import SettingsDialog from './SettingsDialog';
 
 export default function TopBar({ initial = 'B' }) {
   const { mode, toggle } = useThemeMode();
+  const { enabled: dietEnabled } = useDietFeatureEnabled();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const isDark = mode === 'dark';
 
@@ -47,16 +49,18 @@ export default function TopBar({ initial = 'B' }) {
           </IconButton>
         </Tooltip>
 
-        <Tooltip title="Calories">
-          <IconButton
-            component={Link}
-            href="/calories"
-            aria-label="Open calorie tracker"
-            sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
-          >
-            <IconApple size={20} />
-          </IconButton>
-        </Tooltip>
+        {dietEnabled ? (
+          <Tooltip title="Calories">
+            <IconButton
+              component={Link}
+              href="/calories"
+              aria-label="Open calorie tracker"
+              sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
+            >
+              <IconApple size={20} />
+            </IconButton>
+          </Tooltip>
+        ) : null}
 
         <Tooltip title="Summary">
           <IconButton
@@ -89,7 +93,6 @@ export default function TopBar({ initial = 'B' }) {
           <IconButton
             onClick={() => setSettingsOpen(true)}
             aria-label="Open settings"
-            sx={{ display: { xs: 'none', sm: 'inline-flex' } }}
           >
             <IconSettings size={20} />
           </IconButton>

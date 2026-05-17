@@ -8,11 +8,13 @@ import { useState } from 'react';
 import { Paper, BottomNavigation, BottomNavigationAction, Box } from '@mui/material';
 import { IconHome, IconNotebook, IconQuote, IconChartBar, IconApple } from '@tabler/icons-react';
 import { useRouter, usePathname } from 'next/navigation';
+import { useDietFeatureEnabled } from '@/hooks/useDietFeatureEnabled';
 import SettingsDialog from './SettingsDialog';
 
 export default function BottomNav() {
   const router = useRouter();
   const pathname = usePathname();
+  const { enabled: dietEnabled } = useDietFeatureEnabled();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const value = pathname?.startsWith('/journal')
@@ -21,7 +23,7 @@ export default function BottomNav() {
       ? 'quotes'
       : pathname?.startsWith('/summary')
         ? 'summary'
-        : pathname?.startsWith('/calories')
+        : dietEnabled && pathname?.startsWith('/calories')
           ? 'calories'
           : 'home';
 
@@ -72,11 +74,13 @@ export default function BottomNav() {
               else if (v === 'journal') router.push('/journal');
               else if (v === 'quotes') router.push('/quotes');
               else if (v === 'summary') router.push('/summary');
-              else if (v === 'calories') router.push('/calories');
+              else if (dietEnabled && v === 'calories') router.push('/calories');
             }}
           >
             <BottomNavigationAction value="home" label="Today" icon={<IconHome size={20} />} />
-            <BottomNavigationAction value="calories" label="Calories" icon={<IconApple size={20} />} />
+            {dietEnabled ? (
+              <BottomNavigationAction value="calories" label="Calories" icon={<IconApple size={20} />} />
+            ) : null}
             <BottomNavigationAction value="summary" label="Summary" icon={<IconChartBar size={20} />} />
             <BottomNavigationAction value="journal" label="Journal" icon={<IconNotebook size={20} />} />
             <BottomNavigationAction value="quotes" label="Quotes" icon={<IconQuote size={20} />} />
