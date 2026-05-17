@@ -57,25 +57,6 @@ export default function HeroCover({ name = 'you', total = 0, done = 0, date = ne
             : 'radial-gradient(120% 140% at 0% 0%, rgba(15,118,110,0.14) 0%, rgba(124,111,177,0.10) 38%, rgba(250,250,247,0) 70%), linear-gradient(180deg, #ffffff 0%, #f7f7f3 100%)',
       })}
     >
-      {/* decorative blob */}
-      <Box
-        aria-hidden
-        sx={(t) => ({
-          position: 'absolute',
-          right: -40,
-          top: -40,
-          width: 180,
-          height: 180,
-          borderRadius: '50%',
-          filter: 'blur(40px)',
-          opacity: 0.55,
-          background:
-            t.palette.mode === 'dark'
-              ? 'radial-gradient(circle, rgba(45,212,191,0.45), transparent 60%)'
-              : 'radial-gradient(circle, rgba(15,118,110,0.30), transparent 60%)',
-          pointerEvents: 'none',
-        })}
-      />
       <Stack spacing={1.5} sx={{ position: 'relative' }}>
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
           <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1.2 }}>
@@ -92,7 +73,7 @@ export default function HeroCover({ name = 'you', total = 0, done = 0, date = ne
         <Box>
           <Typography
             variant="h4"
-            sx={{ fontWeight: 700, letterSpacing: '-0.015em', lineHeight: 1.15 }}
+            sx={{ fontWeight: 700, letterSpacing: 0, lineHeight: 1.15 }}
           >
             {greet(date)}, {name}.
           </Typography>

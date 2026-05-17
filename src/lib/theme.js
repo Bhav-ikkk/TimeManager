@@ -7,7 +7,7 @@
  */
 import { createTheme } from '@mui/material/styles';
 
-const R = 12;
+const R = 8;
 
 const lightPalette = {
   mode: 'light',
@@ -44,11 +44,11 @@ export function buildTheme(mode = 'light') {
     typography: {
       fontFamily:
         '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
-      h1: { fontWeight: 700, letterSpacing: '-0.02em' },
-      h2: { fontWeight: 700, letterSpacing: '-0.02em' },
-      h3: { fontWeight: 700, letterSpacing: '-0.015em' },
-      h4: { fontWeight: 700, letterSpacing: '-0.01em' },
-      h5: { fontWeight: 600, letterSpacing: '-0.005em' },
+      h1: { fontWeight: 700, letterSpacing: 0 },
+      h2: { fontWeight: 700, letterSpacing: 0 },
+      h3: { fontWeight: 700, letterSpacing: 0 },
+      h4: { fontWeight: 700, letterSpacing: 0 },
+      h5: { fontWeight: 600, letterSpacing: 0 },
       h6: { fontWeight: 600 },
       subtitle1: { fontWeight: 500 },
       subtitle2: { fontWeight: 500 },

@@ -31,7 +31,7 @@ export default function TopBar({ initial = 'B' }) {
       >
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Logo size={28} />
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, letterSpacing: '-0.01em' }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, letterSpacing: 0 }}>
             TauntTable
           </Typography>
         </Link>
