@@ -83,7 +83,9 @@ function parseJsonLoose(text) {
   }
 }
 
-async function callGroqOrOpenRouter(provider, { prompt, key, model }) {
+const DEFAULT_SYSTEM_PROMPT = 'You are a strict, evidence-based clinical dietitian. You always reply with a single valid JSON object that matches the requested schema exactly. No prose outside the JSON. No markdown fences.';
+
+async function callGroqOrOpenRouter(provider, { prompt, key, model, system, temperature = 0.2 }) {
   const cfg = PROVIDERS[provider];
   const headers = {
     'Content-Type': 'application/json',
@@ -99,11 +101,11 @@ async function callGroqOrOpenRouter(provider, { prompt, key, model }) {
     messages: [
       {
         role: 'system',
-        content: 'You are a strict, evidence-based clinical dietitian. You always reply with a single valid JSON object that matches the requested schema exactly. No prose outside the JSON. No markdown fences.',
+        content: system || DEFAULT_SYSTEM_PROMPT,
       },
       { role: 'user', content: prompt },
     ],
-    temperature: 0.2,
+    temperature,
     response_format: { type: 'json_object' },
   };
   const res = await fetch(cfg.endpoint, {
@@ -122,7 +124,7 @@ async function callGroqOrOpenRouter(provider, { prompt, key, model }) {
   return parseJsonLoose(text);
 }
 
-async function callGemini({ prompt, key, model }) {
+async function callGemini({ prompt, key, model, system, temperature = 0.2 }) {
   const cfg = PROVIDERS.gemini;
   const m = model || cfg.defaultModel;
   const url = `${cfg.endpoint}/${encodeURIComponent(m)}:generateContent?key=${encodeURIComponent(key)}`;
@@ -130,9 +132,10 @@ async function callGemini({ prompt, key, model }) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: {
-        temperature: 0.2,
+        temperature,
         responseMimeType: 'application/json',
       },
     }),
@@ -148,9 +151,9 @@ async function callGemini({ prompt, key, model }) {
   return parseJsonLoose(text);
 }
 
-export async function callAI({ provider, prompt, key, model }) {
-  if (!key) throw new Error('No API key configured. Add one in Calorie settings.');
+export async function callAI({ provider, prompt, key, model, system, temperature }) {
+  if (!key) throw new Error('No API key configured. Add one in Settings.');
   if (!PROVIDERS[provider]) throw new Error(`Unknown AI provider: ${provider}`);
-  if (provider === 'gemini') return callGemini({ prompt, key, model });
-  return callGroqOrOpenRouter(provider, { prompt, key, model });
+  if (provider === 'gemini') return callGemini({ prompt, key, model, system, temperature });
+  return callGroqOrOpenRouter(provider, { prompt, key, model, system, temperature });
 }
