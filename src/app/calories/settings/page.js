@@ -39,6 +39,8 @@ import {
 import Link from 'next/link';
 import AppShell from '@/components/AppShell';
 import Crumbs from '@/components/Crumbs';
+import DietActivationPanel from '@/components/DietActivationPanel';
+import { useDietFeatureEnabled } from '@/hooks/useDietFeatureEnabled';
 import {
   getCalorieProfile,
   setCalorieProfile,
@@ -76,6 +78,30 @@ const GOAL_OPTIONS = [
 ];
 
 export default function CalorieSettingsPage() {
+  const { enabled, ready } = useDietFeatureEnabled();
+
+  if (!ready) {
+    return (
+      <AppShell initial="B">
+        <Card sx={{ p: 2 }}>
+          <Typography variant="body2" color="text.secondary">Loading settings...</Typography>
+        </Card>
+      </AppShell>
+    );
+  }
+
+  if (!enabled) {
+    return (
+      <AppShell initial="B">
+        <DietActivationPanel />
+      </AppShell>
+    );
+  }
+
+  return <CalorieSettingsContent />;
+}
+
+function CalorieSettingsContent() {
   const [profile, setProfile] = useState(DEFAULT_PROFILE);
   const [provider, setProviderState] = useState('groq');
   const [keys, setKeys] = useState({ groq: '', gemini: '', openrouter: '' });

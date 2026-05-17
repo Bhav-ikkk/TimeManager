@@ -46,6 +46,8 @@ import {
 import Link from 'next/link';
 import AppShell from '@/components/AppShell';
 import Crumbs from '@/components/Crumbs';
+import DietActivationPanel from '@/components/DietActivationPanel';
+import { useDietFeatureEnabled } from '@/hooks/useDietFeatureEnabled';
 import {
   todayKey,
   getFoodReport,
@@ -59,6 +61,28 @@ import {
 } from '@/lib/calories';
 
 export default function CalorieReportsPage() {
+  const { enabled, ready } = useDietFeatureEnabled();
+
+  if (!ready) {
+    return (
+      <AppShell initial="B">
+        <Card sx={{ p: 2 }}><LinearProgress /></Card>
+      </AppShell>
+    );
+  }
+
+  if (!enabled) {
+    return (
+      <AppShell initial="B">
+        <DietActivationPanel />
+      </AppShell>
+    );
+  }
+
+  return <CalorieReportsContent />;
+}
+
+function CalorieReportsContent() {
   const [kind, setKind] = useState('week');
   const [anchor, setAnchor] = useState(() => new Date());
   const [report, setReport] = useState(null);

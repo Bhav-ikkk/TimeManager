@@ -48,7 +48,9 @@ import Link from 'next/link';
 import { format, addDays, subDays } from 'date-fns';
 import AppShell from '@/components/AppShell';
 import Crumbs from '@/components/Crumbs';
+import DietActivationPanel from '@/components/DietActivationPanel';
 import EmptyState from '@/components/EmptyState';
+import { useDietFeatureEnabled } from '@/hooks/useDietFeatureEnabled';
 import {
   todayKey,
   addFoodEntry,
@@ -73,6 +75,28 @@ function fmtKcal(n) {
 }
 
 export default function CaloriesPage() {
+  const { enabled, ready } = useDietFeatureEnabled();
+
+  if (!ready) {
+    return (
+      <AppShell initial="B">
+        <Card sx={{ p: 2 }}><LinearProgress /></Card>
+      </AppShell>
+    );
+  }
+
+  if (!enabled) {
+    return (
+      <AppShell initial="B">
+        <DietActivationPanel />
+      </AppShell>
+    );
+  }
+
+  return <CaloriesPageContent />;
+}
+
+function CaloriesPageContent() {
   const [date, setDate] = useState(() => new Date());
   const dateKey = useMemo(() => todayKey(date), [date]);
   const [entries, setEntries] = useState([]);
