@@ -18,9 +18,11 @@ import {
   Chip,
   Switch,
   Alert,
+  Divider,
 } from '@mui/material';
 import { IconX, IconBell, IconQuote, IconApple } from '@tabler/icons-react';
 import Link from 'next/link';
+import AIProviderSettings from './AIProviderSettings';
 import TimeField from './TimeField';
 import { getDietFeatureEnabled, setDietFeatureEnabled } from '@/lib/features';
 import {
@@ -90,7 +92,7 @@ export default function SettingsDialog({ open, onClose }) {
   const permColor = perm === 'granted' ? 'primary' : 'default';
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Box sx={{ flex: 1 }}>Settings</Box>
         <IconButton size="small" onClick={onClose} aria-label="Close">
@@ -121,6 +123,12 @@ export default function SettingsDialog({ open, onClose }) {
               A friendly nudge to start the day, sent at this time.
             </Typography>
           </Stack>
+
+          <Divider />
+
+          <AIProviderSettings />
+
+          <Divider />
 
           <Stack spacing={1}>
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
