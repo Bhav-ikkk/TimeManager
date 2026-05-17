@@ -4,7 +4,7 @@ export const DIET_FEATURE_KEY = 'diet-feature-enabled';
 export const DIET_FEATURE_EVENT = 'tt-diet-feature-changed';
 
 export const GITHUB_REPO_URL = 'https://github.com/Bhav-ikkk/TimeManager';
-export const GITHUB_STAR_URL = `${GITHUB_REPO_URL}/stargazers`;
+export const GITHUB_STAR_URL = GITHUB_REPO_URL;
 
 export async function getDietFeatureEnabled() {
   return Boolean(await getSetting(DIET_FEATURE_KEY, false));

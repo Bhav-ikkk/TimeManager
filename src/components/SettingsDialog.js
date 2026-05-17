@@ -20,11 +20,11 @@ import {
   Alert,
   Divider,
 } from '@mui/material';
-import { IconX, IconBell, IconQuote, IconApple } from '@tabler/icons-react';
+import { IconX, IconBell, IconQuote, IconApple, IconBrandGithub } from '@tabler/icons-react';
 import Link from 'next/link';
 import AIProviderSettings from './AIProviderSettings';
 import TimeField from './TimeField';
-import { getDietFeatureEnabled, setDietFeatureEnabled } from '@/lib/features';
+import { GITHUB_STAR_URL, getDietFeatureEnabled, setDietFeatureEnabled } from '@/lib/features';
 import {
   getMorningAlarm,
   setMorningAlarm,
@@ -177,6 +177,17 @@ export default function SettingsDialog({ open, onClose }) {
                 onClick={onClose}
               >
                 Manage quotes
+              </Button>
+              <Button
+                fullWidth
+                variant="outlined"
+                startIcon={<IconBrandGithub size={16} />}
+                component="a"
+                href={GITHUB_STAR_URL}
+                target="_blank"
+                rel="noopener"
+              >
+                Star repo
               </Button>
             </Stack>
           </Stack>
