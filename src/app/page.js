@@ -15,6 +15,7 @@ import SkeletonList from '@/components/SkeletonList';
 import TaskRow from '@/components/TaskRow';
 import AddTaskDialog from '@/components/AddTaskDialog';
 import PermissionBanner from '@/components/PermissionBanner';
+import InstallPrompt from '@/components/InstallPrompt';
 import HeroCover from '@/components/HeroCover';
 import { useToday } from '@/hooks/useToday';
 import { setCompletion } from '@/lib/db';
@@ -36,6 +37,8 @@ export default function HomePage() {
         <HeroCover total={total} done={done} date={today} />
 
         <PermissionBanner />
+
+        <InstallPrompt />
 
         {loading ? (
           <SkeletonList />
