@@ -23,6 +23,7 @@ import {
   IconButton,
   Divider,
   Tooltip,
+  Link as MuiLink,
 } from '@mui/material';
 import {
   IconMoodSmile,
@@ -32,6 +33,7 @@ import {
   IconTrash,
   IconHistory,
   IconCalendarPlus,
+  IconSparkles,
 } from '@tabler/icons-react';
 import AppShell from '@/components/AppShell';
 import Crumbs from '@/components/Crumbs';
@@ -45,12 +47,14 @@ import {
   todayKey,
 } from '@/lib/db';
 import { verdictFor } from '@/lib/scoring';
+import { AI_KEY_MISSING_CODE, enhanceDailySummary } from '@/lib/dailySummary';
+import { PROVIDERS } from '@/lib/aiProviders';
 import {
   notificationsSupported,
   requestNotificationPermission,
 } from '@/lib/notifications';
 
-const MAX_NOTE = 800;
+const MAX_NOTE = 1400;
 
 function shiftDateKey(dateKey, days) {
   const d = parseISO(dateKey);
@@ -69,6 +73,10 @@ export default function JournalPage() {
   const [text, setText] = useState('');
   const [verdict, setVerdict] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [enhancing, setEnhancing] = useState(false);
+  const [enhanceError, setEnhanceError] = useState('');
+  const [originalText, setOriginalText] = useState('');
+  const [enhanced, setEnhanced] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [history, setHistory] = useState([]);
 
@@ -81,6 +89,9 @@ export default function JournalPage() {
     let cancelled = false;
     setHydrated(false);
     setVerdict(null);
+    setEnhanceError('');
+    setOriginalText('');
+    setEnhanced(false);
     getJournal(viewDate)
       .then((row) => {
         if (cancelled) return;
@@ -122,6 +133,8 @@ export default function JournalPage() {
         missedTaskIds: v.missed.map((t) => t.id),
       });
       setVerdict(v);
+      setEnhanced(false);
+      setOriginalText('');
       refreshHistory();
 
       if (
@@ -161,6 +174,27 @@ export default function JournalPage() {
       }
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleEnhance() {
+    setEnhanceError('');
+    setEnhancing(true);
+    try {
+      const before = text;
+      const summary = await enhanceDailySummary({
+        date: viewDate,
+        text,
+        tasks,
+        completedIds,
+      });
+      setOriginalText(before);
+      setText(summary);
+      setEnhanced(true);
+    } catch (error) {
+      setEnhanceError(error?.code === AI_KEY_MISSING_CODE ? AI_KEY_MISSING_CODE : (error?.message || 'Enhancement failed.'));
+    } finally {
+      setEnhancing(false);
     }
   }
 
@@ -223,12 +257,39 @@ export default function JournalPage() {
                   {text.length}/{MAX_NOTE}
                 </Typography>
                 <Stack direction="row" spacing={1}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<IconSparkles size={16} />}
+                    onClick={handleEnhance}
+                    disabled={saving || enhancing}
+                  >
+                    {enhancing ? 'Enhancing...' : 'Enhance'}
+                  </Button>
                   <Button variant="contained" onClick={handleSave} disabled={saving}>
                     {verdict ? 'Save & Re-review' : 'Save & Review'}
                   </Button>
                 </Stack>
               </Stack>
             </Card>
+
+            {enhanceError ? (
+              enhanceError === AI_KEY_MISSING_CODE ? <AISetupSteps /> : <Alert severity="warning">{enhanceError}</Alert>
+            ) : null}
+
+            {enhanced ? (
+              <Alert
+                severity="success"
+                action={
+                  originalText ? (
+                    <Button color="inherit" size="small" onClick={() => { setText(originalText); setEnhanced(false); }}>
+                      Restore
+                    </Button>
+                  ) : null
+                }
+              >
+                Enhanced draft ready. Keep it, edit it, or restore your original.
+              </Alert>
+            ) : null}
 
             {verdict ? (
               <VerdictCard verdict={verdict} />
@@ -246,6 +307,24 @@ export default function JournalPage() {
         />
       </Stack>
     </AppShell>
+  );
+}
+
+function AISetupSteps() {
+  return (
+    <Alert severity="info" sx={{ alignItems: 'flex-start' }}>
+      <Typography variant="subtitle2" sx={{ mb: 0.5 }}>Set up AI writing</Typography>
+      <Box component="ol" sx={{ m: 0, pl: 2.25 }}>
+        <Typography component="li" variant="caption">Open the gear icon, then AI writing.</Typography>
+        <Typography component="li" variant="caption">
+          Create a key from{' '}
+          <MuiLink href={PROVIDERS.groq.docs} target="_blank" rel="noopener" underline="hover">Groq</MuiLink>,{' '}
+          <MuiLink href={PROVIDERS.gemini.docs} target="_blank" rel="noopener" underline="hover">Gemini</MuiLink>, or{' '}
+          <MuiLink href={PROVIDERS.openrouter.docs} target="_blank" rel="noopener" underline="hover">OpenRouter</MuiLink>.
+        </Typography>
+        <Typography component="li" variant="caption">Paste it, save it, then tap Enhance again.</Typography>
+      </Box>
+    </Alert>
   );
 }
 
