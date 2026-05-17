@@ -24,7 +24,6 @@ import {
   addDays,
   subDays,
   addMonths,
-  subMonths,
   isSameMonth,
   isSameDay,
   differenceInCalendarDays,
@@ -137,6 +136,7 @@ function computeCurrentStreak(days) {
 export default function SummaryPage() {
   const [kind, setKind] = useState('month');
   const [anchor, setAnchor] = useState(() => new Date());
+  const [selectedDateKey, setSelectedDateKey] = useState(() => todayKey(new Date()));
   const [days, setDays] = useState(null);
 
   const { start, end } = useMemo(() => rangeBounds(kind, anchor), [kind, anchor]);
@@ -192,6 +192,24 @@ export default function SummaryPage() {
     };
   }, [days]);
 
+  useEffect(() => {
+    if (!days || days.length === 0) return;
+    if (days.some((d) => d.dateKey === selectedDateKey)) return;
+    const today = startOfDay(new Date());
+    const fallback = days
+      .slice()
+      .reverse()
+      .find((d) => !isAfter(startOfDay(d.date), today) && d.scheduled > 0)
+      || days.find((d) => !isAfter(startOfDay(d.date), today))
+      || days[0];
+    setSelectedDateKey(fallback.dateKey);
+  }, [days, selectedDateKey]);
+
+  const selectedDay = useMemo(
+    () => days?.find((d) => d.dateKey === selectedDateKey) || null,
+    [days, selectedDateKey]
+  );
+
   const loading = days === null;
 
   return (
@@ -225,7 +243,11 @@ export default function SummaryPage() {
               monthAnchor={kind === 'month' ? anchor : new Date()}
               kind={kind}
               setAnchor={setAnchor}
+              selectedDateKey={selectedDateKey}
+              onSelectDate={setSelectedDateKey}
             />
+
+            <SelectedDaySummary day={selectedDay} />
 
             <DayBreakdown days={days} />
           </>
@@ -471,7 +493,7 @@ function KpiCard({ icon, label, value, hint, progress, tone = 'default' }) {
 /* Calendar heatmap                                                    */
 /* ------------------------------------------------------------------ */
 
-function CalendarHeatmap({ days, monthAnchor, kind, setAnchor }) {
+function CalendarHeatmap({ days, monthAnchor, kind, setAnchor, selectedDateKey, onSelectDate }) {
   const [viewMonth, setViewMonth] = useState(() => startOfMonth(monthAnchor));
 
   useEffect(() => {
@@ -495,6 +517,12 @@ function CalendarHeatmap({ days, monthAnchor, kind, setAnchor }) {
   }
   const today = todayKey(new Date());
 
+  function moveMonth(dir) {
+    const next = addMonths(viewMonth, dir);
+    if (kind === 'month') setAnchor(next);
+    setViewMonth(next);
+  }
+
   return (
     <Card sx={{ p: { xs: 1.5, sm: 2 } }}>
       <Stack direction="row" sx={{ alignItems: 'center', mb: 1.5 }}>
@@ -504,12 +532,12 @@ function CalendarHeatmap({ days, monthAnchor, kind, setAnchor }) {
             {format(viewMonth, 'MMMM yyyy')}
           </Typography>
         </Stack>
-        <IconButton size="small" onClick={() => setViewMonth((m) => subMonths(m, 1))} aria-label="Previous month">
+        <IconButton size="small" onClick={() => moveMonth(-1)} aria-label="Previous month">
           <IconChevronLeft size={18} />
         </IconButton>
         <IconButton
           size="small"
-          onClick={() => setViewMonth((m) => addMonths(m, 1))}
+          onClick={() => moveMonth(1)}
           aria-label="Next month"
           disabled={isSameMonth(viewMonth, new Date())}
         >
@@ -540,6 +568,7 @@ function CalendarHeatmap({ days, monthAnchor, kind, setAnchor }) {
           const stat = byKey.get(key);
           const inMonth = isSameMonth(d, viewMonth);
           const isToday = key === today;
+          const selected = key === selectedDateKey;
           const future = isAfter(startOfDay(d), startOfDay(new Date()));
           return (
             <HeatCell
@@ -548,11 +577,12 @@ function CalendarHeatmap({ days, monthAnchor, kind, setAnchor }) {
               stat={stat}
               inMonth={inMonth}
               isToday={isToday}
+              selected={selected}
               future={future}
               onClick={() => {
-                // Let users zoom into a day quickly via the journal/date system.
-                if (!stat || future) return;
-                setAnchor(d);
+                if (future) return;
+                onSelectDate?.(key);
+                if (kind === 'month' && !isSameMonth(d, monthAnchor)) setAnchor(d);
               }}
             />
           );
@@ -579,7 +609,7 @@ function levelFor(stat) {
   return 3;
 }
 
-function HeatCell({ day, stat, inMonth, isToday, future, onClick }) {
+function HeatCell({ day, stat, inMonth, isToday, selected, future, onClick }) {
   const level = levelFor(stat);
   const tooltip = !stat
     ? `${format(day, 'EEE, d MMM')} — no data`
@@ -589,7 +619,7 @@ function HeatCell({ day, stat, inMonth, isToday, future, onClick }) {
   return (
     <Tooltip title={tooltip} arrow disableInteractive>
       <Box
-        component={stat && !future ? 'button' : 'div'}
+        component={!future ? 'button' : 'div'}
         onClick={onClick}
         sx={(t) => ({
           aspectRatio: '1 / 1',
@@ -601,14 +631,14 @@ function HeatCell({ day, stat, inMonth, isToday, future, onClick }) {
           alignItems: 'center',
           justifyContent: 'center',
           gap: 0.25,
-          cursor: stat && !future ? 'pointer' : 'default',
+          cursor: !future ? 'pointer' : 'default',
           opacity: inMonth ? 1 : 0.4,
           background: 'transparent',
           color: 'inherit',
           font: 'inherit',
           padding: 0,
           position: 'relative',
-          ...heatStyle(t, level, isToday, future),
+          ...heatStyle(t, level, isToday, selected, future),
         })}
         aria-label={tooltip}
       >
@@ -625,7 +655,7 @@ function HeatCell({ day, stat, inMonth, isToday, future, onClick }) {
   );
 }
 
-function heatStyle(t, level, isToday, future) {
+function heatStyle(t, level, isToday, selected, future) {
   const dark = t.palette.mode === 'dark';
   const palettes = {
     [-1]: dark ? 'rgba(255,255,255,0.02)' : 'rgba(15,23,42,0.02)',
@@ -637,8 +667,12 @@ function heatStyle(t, level, isToday, future) {
   return {
     bgcolor: palettes[level],
     color: level === 3 ? (dark ? '#0f172a' : '#ffffff') : 'inherit',
-    outline: isToday ? `2px solid ${t.palette.primary.main}` : 'none',
-    outlineOffset: isToday ? -2 : 0,
+    outline: selected
+      ? `2px solid ${t.palette.secondary.main}`
+      : isToday
+        ? `2px solid ${t.palette.primary.main}`
+        : 'none',
+    outlineOffset: selected || isToday ? -2 : 0,
     filter: future ? 'grayscale(0.5)' : 'none',
   };
 }
@@ -656,6 +690,66 @@ function LegendSwatch({ level, label }) {
       />
       <Typography variant="caption" color="text.secondary">{label}</Typography>
     </Stack>
+  );
+}
+
+function SelectedDaySummary({ day }) {
+  if (!day) return null;
+  const skipped = day.tasks.filter((t) => !t.completed);
+  const completed = day.tasks.filter((t) => t.completed);
+  const rate = day.scheduled ? Math.round((day.completed / day.scheduled) * 100) : 0;
+
+  return (
+    <Card sx={{ p: { xs: 1.5, sm: 2 } }}>
+      <Stack spacing={1.25}>
+        <Stack direction="row" sx={{ alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+            {format(day.date, 'EEEE, d MMM yyyy')}
+          </Typography>
+          <Box sx={{ flex: 1 }} />
+          <Chip size="small" label={`${day.completed}/${day.scheduled} done`} color={day.completed === day.scheduled && day.scheduled > 0 ? 'success' : 'default'} />
+          <Chip size="small" label={`${rate}%`} variant="outlined" />
+        </Stack>
+
+        {day.scheduled === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            No tasks were scheduled for this date.
+          </Typography>
+        ) : (
+          <Stack spacing={1.25}>
+            <LinearProgress
+              variant="determinate"
+              value={rate}
+              sx={(t) => ({
+                height: 4,
+                borderRadius: 2,
+                bgcolor: t.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)',
+              })}
+            />
+            {skipped.length > 0 ? (
+              <Box>
+                <Typography variant="caption" color="warning.main" sx={{ fontWeight: 700 }}>
+                  Skipped · {skipped.length}
+                </Typography>
+                <Stack sx={{ mt: 0.5 }} spacing={0.35}>
+                  {skipped.map((task) => <TaskLine key={task.id} task={task} skipped />)}
+                </Stack>
+              </Box>
+            ) : null}
+            {completed.length > 0 ? (
+              <Box>
+                <Typography variant="caption" color="success.main" sx={{ fontWeight: 700 }}>
+                  Completed · {completed.length}
+                </Typography>
+                <Stack sx={{ mt: 0.5 }} spacing={0.35}>
+                  {completed.map((task) => <TaskLine key={task.id} task={task} />)}
+                </Stack>
+              </Box>
+            ) : null}
+          </Stack>
+        )}
+      </Stack>
+    </Card>
   );
 }
 
