@@ -16,10 +16,13 @@ import {
   Box,
   IconButton,
   Chip,
+  Switch,
+  Alert,
 } from '@mui/material';
-import { IconX, IconBell, IconQuote } from '@tabler/icons-react';
+import { IconX, IconBell, IconQuote, IconApple } from '@tabler/icons-react';
 import Link from 'next/link';
 import TimeField from './TimeField';
+import { getDietFeatureEnabled, setDietFeatureEnabled } from '@/lib/features';
 import {
   getMorningAlarm,
   setMorningAlarm,
@@ -31,11 +34,21 @@ import {
 export default function SettingsDialog({ open, onClose }) {
   const [time, setTime] = useState('07:00');
   const [perm, setPerm] = useState('default');
+  const [dietEnabled, setDietEnabled] = useState(false);
+  const [dietWasEnabled, setDietWasEnabled] = useState(false);
+  const [showDietSteps, setShowDietSteps] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     getMorningAlarm().then(setTime).catch(() => {});
+    getDietFeatureEnabled()
+      .then((enabled) => {
+        setDietEnabled(enabled);
+        setDietWasEnabled(enabled);
+        setShowDietSteps(false);
+      })
+      .catch(() => {});
     setPerm(notificationStatus());
   }, [open]);
 
@@ -45,11 +58,19 @@ export default function SettingsDialog({ open, onClose }) {
       if (/^\d{2}:\d{2}$/.test(time)) {
         await setMorningAlarm(time);
       }
+      await setDietFeatureEnabled(dietEnabled);
+      setDietWasEnabled(dietEnabled);
       await rescheduleAll();
       onClose?.();
     } finally {
       setBusy(false);
     }
+  }
+
+  function handleDietToggle(event) {
+    const next = event.target.checked;
+    setDietEnabled(next);
+    if (next && !dietWasEnabled) setShowDietSteps(true);
   }
 
   async function enableNotifications() {
@@ -99,6 +120,31 @@ export default function SettingsDialog({ open, onClose }) {
             <Typography variant="caption" color="text.secondary">
               A friendly nudge to start the day, sent at this time.
             </Typography>
+          </Stack>
+
+          <Stack spacing={1}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+              <IconApple size={18} />
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="subtitle2">Diet tracker</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  Hidden from navigation until you activate it.
+                </Typography>
+              </Box>
+              <Switch checked={dietEnabled} onChange={handleDietToggle} slotProps={{ input: { 'aria-label': 'Activate diet tracker' } }} />
+            </Stack>
+            {showDietSteps ? (
+              <Alert severity="info" sx={{ alignItems: 'flex-start' }}>
+                <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                  After saving
+                </Typography>
+                <Box component="ol" sx={{ m: 0, pl: 2.25 }}>
+                  <Typography component="li" variant="caption">Open Calories from the top bar or bottom nav.</Typography>
+                  <Typography component="li" variant="caption">Add your profile and optional AI key in Calorie settings.</Typography>
+                  <Typography component="li" variant="caption">Log food, then run daily or range analysis when you want a report.</Typography>
+                </Box>
+              </Alert>
+            ) : null}
           </Stack>
 
           <Stack spacing={1}>
