@@ -32,6 +32,11 @@
  * settings
  *   key          string primary key
  *   value        any
+ *
+ * daySnapshots
+ *   date         yyyy-MM-dd (primary key)
+ *   tasks        frozen task rows for that date, including completion state
+ *   updatedAt    epoch ms
  */
 import Dexie from 'dexie';
 
@@ -67,6 +72,18 @@ class TauntDB extends Dexie {
       foodEntries: '++id, date, at',
       foodReports: 'id, kind, startDate, endDate, savedAt',
     });
+    // v4: day snapshots preserve historical summaries even after tasks are
+    // edited or deleted later.
+    this.version(4).stores({
+      tasks: '++id, time, createdAt',
+      completions: 'id, taskId, date',
+      journal: 'date',
+      settings: 'key',
+      pending: 'id, when, tag',
+      foodEntries: '++id, date, at',
+      foodReports: 'id, kind, startDate, endDate, savedAt',
+      daySnapshots: 'date, updatedAt',
+    });
   }
 }
 
@@ -88,6 +105,12 @@ export function todayKey(d = new Date()) {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+export function dateFromKey(dateKey) {
+  const parts = String(dateKey || '').split('-').map((part) => parseInt(part, 10));
+  if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) return new Date(dateKey);
+  return new Date(parts[0], parts[1] - 1, parts[2]);
 }
 
 export function completionId(date, taskId) {
@@ -126,22 +149,26 @@ export async function addTask(input) {
     createdAt: now,
     updatedAt: now,
   });
+  await captureDaySnapshot(todayKey()).catch(() => {});
   return id;
 }
 
 export async function updateTask(id, patch) {
   const db = getDB();
   if (!db) return 0;
-  return db.tasks.update(id, { ...patch, updatedAt: Date.now() });
+  const existing = await db.tasks.get(id);
+  await captureTaskHistory(existing, { includeToday: false }).catch(() => {});
+  const result = await db.tasks.update(id, { ...patch, updatedAt: Date.now() });
+  await captureDaySnapshot(todayKey()).catch(() => {});
+  return result;
 }
 
 export async function deleteTask(id) {
   const db = getDB();
   if (!db) return;
-  await db.transaction('rw', db.tasks, db.completions, async () => {
-    await db.tasks.delete(id);
-    await db.completions.where('taskId').equals(id).delete();
-  });
+  const existing = await db.tasks.get(id);
+  await captureTaskHistory(existing, { includeToday: true }).catch(() => {});
+  await db.tasks.delete(id);
 }
 
 export async function setCompletion(taskId, date, done) {
@@ -153,6 +180,7 @@ export async function setCompletion(taskId, date, done) {
   } else {
     await db.completions.delete(id);
   }
+  await captureDaySnapshot(date).catch(() => {});
 }
 
 export async function getJournal(date) {
@@ -165,6 +193,7 @@ export async function saveJournal(entry) {
   const db = getDB();
   if (!db) return;
   await db.journal.put({ ...entry, savedAt: Date.now() });
+  await captureDaySnapshot(entry.date || todayKey()).catch(() => {});
 }
 
 /**
@@ -382,6 +411,119 @@ export async function deleteFoodReport(id) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Day snapshots                                                       */
+/* ------------------------------------------------------------------ */
+
+function taskSnapshot(task, completed) {
+  return {
+    id: task.id,
+    title: String(task.title || 'Untitled task').slice(0, 80),
+    time: /^\d{2}:\d{2}$/.test(String(task.time || '')) ? task.time : '00:00',
+    note: String(task.note || '').slice(0, 200),
+    completed: Boolean(completed),
+  };
+}
+
+function fallbackTaskSnapshot(taskId, completed) {
+  return {
+    id: taskId,
+    title: `Deleted task #${taskId}`,
+    time: '00:00',
+    note: '',
+    completed: Boolean(completed),
+    archived: true,
+  };
+}
+
+function snapshotRowFromStat(stat) {
+  return {
+    date: stat.dateKey,
+    tasks: stat.tasks.map((task) => ({ ...task })),
+    updatedAt: Date.now(),
+  };
+}
+
+function statFromState(dateObject, allTasks, doneSet, existingSnapshot = null) {
+  const dateKey = todayKey(dateObject);
+  const tasksById = new Map();
+  const taskById = new Map(allTasks.map((task) => [task.id, task]));
+
+  if (Array.isArray(existingSnapshot?.tasks)) {
+    for (const snapshotTask of existingSnapshot.tasks) {
+      if (snapshotTask?.id == null) continue;
+      tasksById.set(snapshotTask.id, {
+        ...snapshotTask,
+        completed: doneSet.has(snapshotTask.id),
+      });
+    }
+  }
+
+  for (const task of allTasks) {
+    if (isTaskOnDate(task, dateObject)) {
+      tasksById.set(task.id, taskSnapshot(task, doneSet.has(task.id)));
+    }
+  }
+
+  for (const taskId of doneSet) {
+    if (tasksById.has(taskId)) continue;
+    const task = taskById.get(taskId);
+    tasksById.set(taskId, task ? taskSnapshot(task, true) : fallbackTaskSnapshot(taskId, true));
+  }
+
+  const tasks = [...tasksById.values()].sort((leftTask, rightTask) => {
+    if (leftTask.time === rightTask.time) return String(leftTask.title).localeCompare(String(rightTask.title));
+    return leftTask.time < rightTask.time ? -1 : 1;
+  });
+  const completed = tasks.filter((task) => task.completed).length;
+
+  return {
+    dateKey,
+    date: dateObject,
+    scheduled: tasks.length,
+    completed,
+    missed: tasks.length - completed,
+    tasks,
+  };
+}
+
+async function getDoneSetForDate(db, dateKey) {
+  const completions = await db.completions.where('date').equals(dateKey).toArray();
+  return new Set(completions.map((completion) => completion.taskId));
+}
+
+export async function captureDaySnapshot(dateInput = todayKey()) {
+  const db = getDB();
+  if (!db) return null;
+  const dateKey = typeof dateInput === 'string' ? dateInput : todayKey(dateInput);
+  const dateObject = typeof dateInput === 'string' ? dateFromKey(dateInput) : new Date(dateInput);
+  const [allTasks, doneSet, existingSnapshot] = await Promise.all([
+    db.tasks.toArray(),
+    getDoneSetForDate(db, dateKey),
+    db.daySnapshots.get(dateKey),
+  ]);
+  const stat = statFromState(dateObject, allTasks, doneSet, existingSnapshot);
+  await db.daySnapshots.put(snapshotRowFromStat(stat));
+  return stat;
+}
+
+async function captureTaskHistory(task, { includeToday = false } = {}) {
+  if (!task || typeof task.createdAt !== 'number') return;
+  const startDate = new Date(task.createdAt);
+  startDate.setHours(0, 0, 0, 0);
+  const endDate = new Date();
+  endDate.setHours(0, 0, 0, 0);
+  if (!includeToday) endDate.setDate(endDate.getDate() - 1);
+  if (endDate < startDate) return;
+
+  for (let cursor = new Date(startDate); cursor <= endDate; cursor.setDate(cursor.getDate() + 1)) {
+    const day = new Date(cursor);
+    if (isTaskOnDate(task, day)) {
+      await captureDaySnapshot(todayKey(day));
+    }
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Range stats — used by the Summary page                              */
 /* ------------------------------------------------------------------ */
 
@@ -407,37 +549,47 @@ export async function getRangeStats(startDate, endDate) {
   const startKey = todayKey(start);
   const endKey = todayKey(end);
 
-  const completions = await db.completions
-    .where('date')
-    .between(startKey, endKey, true, true)
-    .toArray();
+  const [completions, snapshots] = await Promise.all([
+    db.completions
+      .where('date')
+      .between(startKey, endKey, true, true)
+      .toArray(),
+    db.daySnapshots
+      .where('date')
+      .between(startKey, endKey, true, true)
+      .toArray(),
+  ]);
   const doneByDate = new Map();
-  for (const c of completions) {
-    if (!doneByDate.has(c.date)) doneByDate.set(c.date, new Set());
-    doneByDate.get(c.date).add(c.taskId);
+  for (const completion of completions) {
+    if (!doneByDate.has(completion.date)) doneByDate.set(completion.date, new Set());
+    doneByDate.get(completion.date).add(completion.taskId);
   }
+  const snapshotsByDate = new Map(snapshots.map((snapshot) => [snapshot.date, snapshot]));
 
-  return days.map((d) => {
-    const key = todayKey(d);
-    const scheduled = allTasks.filter((t) => isTaskOnDate(t, d));
-    const doneSet = doneByDate.get(key) || new Set();
-    const tasks = scheduled
-      .slice()
-      .sort((a, b) => (a.time < b.time ? -1 : 1))
-      .map((t) => ({
-        id: t.id,
-        title: t.title,
-        time: t.time,
-        completed: doneSet.has(t.id),
-      }));
-    const completed = tasks.filter((t) => t.completed).length;
-    return {
-      dateKey: key,
-      date: d,
-      scheduled: scheduled.length,
-      completed,
-      missed: scheduled.length - completed,
-      tasks,
-    };
+  const stats = days.map((dateObject) => {
+    const key = todayKey(dateObject);
+    return statFromState(
+      dateObject,
+      allTasks,
+      doneByDate.get(key) || new Set(),
+      snapshotsByDate.get(key) || null
+    );
   });
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const missingSnapshots = stats
+    .filter((stat) => stat.scheduled > 0)
+    .filter((stat) => !isFutureDate(stat.date, todayStart))
+    .filter((stat) => !snapshotsByDate.has(stat.dateKey))
+    .map(snapshotRowFromStat);
+  if (missingSnapshots.length) await db.daySnapshots.bulkPut(missingSnapshots);
+
+  return stats;
+}
+
+function isFutureDate(dateObject, todayStart) {
+  const dayStart = new Date(dateObject);
+  dayStart.setHours(0, 0, 0, 0);
+  return dayStart > todayStart;
 }
