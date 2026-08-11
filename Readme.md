@@ -159,6 +159,7 @@ src/
     useDietFeatureEnabled.js
   lib/
     db.js
+    backup.js
     notifications.js
     aiProviders.js
     dailySummary.js
@@ -167,6 +168,15 @@ src/
     features.js
     theme.js
 ```
+
+## Backup And Restore
+
+Because all data is local-only, clearing site data or losing the device loses
+everything. Settings (gear icon) → "Your data" exports a single JSON file of
+every table (tasks, completions, journal, settings, food logs, reports, day
+snapshots) and can restore from one. The export includes any API keys you
+saved, so treat the file as private. Import replaces all current data after an
+explicit confirmation.
 
 ## Privacy And Security
 
