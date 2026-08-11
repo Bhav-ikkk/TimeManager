@@ -191,7 +191,13 @@ explicit confirmation.
 - External AI requests go directly from the browser to Groq, Gemini, or OpenRouter.
 - Security headers include CSP, HSTS, X-Frame-Options, X-Content-Type-Options,
   Referrer-Policy, Permissions-Policy, COOP, and CORP.
-- `npm audit --audit-level=moderate` is clean after the PostCSS override.
+- The CSP keeps `script-src 'unsafe-inline'` (no `eval`): Next.js's hydration
+  bootstrap and the pre-paint theme script are inline, and a nonce-based CSP
+  would force every page to render dynamically, defeating static caching for
+  an offline-first PWA. This trade-off is deliberate and documented rather
+  than silently dropped.
+- CI runs lint, tests, a production build, and
+  `npm audit --audit-level=moderate` on every push and pull request.
 
 ## Repository
 
