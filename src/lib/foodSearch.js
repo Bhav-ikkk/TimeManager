@@ -5,8 +5,10 @@
  * database, pick a real product, and log it with accurate per-100g
  * nutrition pulled directly from USDA. No AI guesswork at this stage.
  *
- * The default API key below is the demo key the user provided; a power
- * user can replace it in Calorie settings if they hit the rate limit.
+ * The API key comes from either a user-entered value (stored locally in
+ * Dexie settings) or the NEXT_PUBLIC_USDA_FDC_KEY build-time environment
+ * variable. There is deliberately no committed default key — a free key
+ * takes a minute to obtain at https://fdc.nal.usda.gov/api-key-signup.
  *
  * Docs: https://fdc.nal.usda.gov/api-guide
  */
@@ -14,11 +16,14 @@ import { getSetting, setSetting } from './db';
 
 const FDC_BASE = 'https://api.nal.usda.gov/fdc/v1';
 const FDC_KEY_KEY = 'usda-fdc-key';
-const DEFAULT_FDC_KEY = 'XWTykX9hxzsYaVvyOC12IhEt3RiJkRU7TxfVPPRH';
+const ENV_FDC_KEY = process.env.NEXT_PUBLIC_USDA_FDC_KEY || '';
+
+export const FDC_KEY_MISSING_MESSAGE =
+  'No USDA API key configured. Get a free key at fdc.nal.usda.gov/api-key-signup and paste it in Calories settings (or set NEXT_PUBLIC_USDA_FDC_KEY at build time).';
 
 export async function getFdcKey() {
   const v = await getSetting(FDC_KEY_KEY, '');
-  return (typeof v === 'string' && v.trim()) || DEFAULT_FDC_KEY;
+  return (typeof v === 'string' && v.trim()) || ENV_FDC_KEY;
 }
 
 export async function setFdcKey(key) {
@@ -134,6 +139,7 @@ export async function searchFoods(query, { signal, pageSize = 20 } = {}) {
   const cached = _searchCache.get(q);
   if (cached) return cached;
   const key = await getFdcKey();
+  if (!key) throw new Error(FDC_KEY_MISSING_MESSAGE);
   const url = `${FDC_BASE}/foods/search?api_key=${encodeURIComponent(key)}&query=${encodeURIComponent(q)}&pageSize=${pageSize}&dataType=Foundation,SR%20Legacy,Branded`;
   const res = await fetch(url, { signal });
   if (!res.ok) {
