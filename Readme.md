@@ -74,6 +74,24 @@ Regenerate PWA icons after editing `public/icons/icon.svg`:
 node scripts/gen-icons.js
 ```
 
+### Friends Feature Backend (optional, work in progress)
+
+The upcoming friends feature (get a push when a friend misses a watched task)
+is the first and only part of TauntTable that uses a server. It is opt-in and
+the app remains fully local-only without it. To develop against it you need:
+
+1. A free [Neon](https://neon.tech) Postgres project — put its connection
+   string in `.env.local` as `DATABASE_URL`, then run `npm run db:migrate`.
+2. A GitHub OAuth app (GitHub → Settings → Developer settings → OAuth Apps)
+   with callback URL `http://localhost:3000/api/auth/callback/github` — put
+   the client id/secret in `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET`.
+3. An `AUTH_SECRET` (generate one with `npx auth secret`).
+
+Check `GET /api/health` to see which pieces are configured. The server-side
+schema (`src/server/db/schema.js`) deliberately contains tables only for
+friendships, push subscriptions, and explicitly watched tasks — journals,
+diet logs, and unwatched tasks have no server tables at all.
+
 ## Main Workflows
 
 ### Tasks and Reminders
