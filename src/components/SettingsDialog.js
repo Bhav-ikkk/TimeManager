@@ -4,7 +4,7 @@
  * src/components/SettingsDialog.js
  * Tiny settings sheet — morning alarm time + notification status.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -27,12 +27,13 @@ import {
   IconApple,
   IconBrandGithub,
   IconDownload,
+  IconUpload,
 } from '@tabler/icons-react';
 import Link from 'next/link';
 import AIProviderSettings from './AIProviderSettings';
 import TimeField from './TimeField';
 import { GITHUB_STAR_URL, getDietFeatureEnabled, setDietFeatureEnabled } from '@/lib/features';
-import { downloadBackup } from '@/lib/backup';
+import { downloadBackup, validateBackup, importAllData } from '@/lib/backup';
 import {
   getMorningAlarm,
   setMorningAlarm,
@@ -49,6 +50,8 @@ export default function SettingsDialog({ open, onClose }) {
   const [showDietSteps, setShowDietSteps] = useState(false);
   const [busy, setBusy] = useState(false);
   const [dataStatus, setDataStatus] = useState(null); // { severity, message }
+  const [pendingImport, setPendingImport] = useState(null); // { parsed, counts }
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -90,6 +93,36 @@ export default function SettingsDialog({ open, onClose }) {
       setDataStatus({ severity: 'success', message: 'Backup downloaded. Keep the file private — it includes any API keys you saved.' });
     } catch (e) {
       setDataStatus({ severity: 'error', message: e?.message || 'Export failed.' });
+    }
+  }
+
+  async function handleImportFile(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const parsed = JSON.parse(await file.text());
+      const counts = validateBackup(parsed);
+      setPendingImport({ parsed, counts });
+      setDataStatus(null);
+    } catch (e) {
+      setPendingImport(null);
+      setDataStatus({ severity: 'error', message: e?.message || 'Could not read that file.' });
+    }
+  }
+
+  async function confirmImport() {
+    if (!pendingImport) return;
+    setBusy(true);
+    try {
+      await importAllData(pendingImport.parsed);
+      // Reload so every page, hook and the notification scheduler re-read
+      // the restored state instead of showing stale in-memory data.
+      window.location.reload();
+    } catch (e) {
+      setDataStatus({ severity: 'error', message: e?.message || 'Import failed. Your existing data is unchanged.' });
+      setPendingImport(null);
+      setBusy(false);
     }
   }
 
@@ -188,7 +221,46 @@ export default function SettingsDialog({ open, onClose }) {
               >
                 Export data
               </Button>
+              <Button
+                fullWidth
+                variant="outlined"
+                startIcon={<IconUpload size={16} />}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Import data
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json,.json"
+                hidden
+                onChange={handleImportFile}
+              />
             </Stack>
+            {pendingImport ? (
+              <Alert
+                severity="warning"
+                sx={{ alignItems: 'flex-start' }}
+                action={
+                  <Stack direction="row" spacing={0.5}>
+                    <Button size="small" color="inherit" onClick={() => setPendingImport(null)} disabled={busy}>
+                      Cancel
+                    </Button>
+                    <Button size="small" color="warning" variant="contained" onClick={confirmImport} disabled={busy}>
+                      Replace
+                    </Button>
+                  </Stack>
+                }
+              >
+                <Typography variant="caption" component="div">
+                  This replaces <strong>all</strong> current data with the backup
+                  ({Object.entries(pendingImport.counts)
+                    .filter(([, n]) => n > 0)
+                    .map(([name, n]) => `${n} ${name}`)
+                    .join(', ') || 'empty'}). This cannot be undone.
+                </Typography>
+              </Alert>
+            ) : null}
             {dataStatus ? (
               <Alert severity={dataStatus.severity} onClose={() => setDataStatus(null)}>
                 <Typography variant="caption">{dataStatus.message}</Typography>
