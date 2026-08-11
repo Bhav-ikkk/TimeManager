@@ -19,15 +19,20 @@
     "@mui/material-nextjs": "^9.0.0",
     "@mui/system": "^9.0.0",
     "@mui/x-date-pickers": "^9.0.2",
+    "@neondatabase/serverless": "^1.1.0",
     "@tabler/icons-react": "^3.41.1",
     "date-fns": "^4.1.0",
     "dexie": "^4.4.2",
     "dexie-react-hooks": "^4.4.0",
+    "drizzle-orm": "^0.45.2",
     "next": "^16.2.4",
+    "next-auth": "^5.0.0-beta.32",
     "react": "^19.2.5",
     "react-dom": "^19.2.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.4",
     "fake-indexeddb": "^6.2.5",
@@ -36,6 +41,9 @@
     "vitest": "^4.1.10"
   },
   "overrides": {
-    "postcss": "^8.5.10"
+    "postcss": "^8.5.10",
+    "@esbuild-kit/core-utils": {
+      "esbuild": "^0.25.0"
+    }
   }
 }
