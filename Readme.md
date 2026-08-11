@@ -43,6 +43,12 @@ npm run dev
 # open http://localhost:3000
 ```
 
+Optional environment variables live in `.env.local` (copy `.env.example`).
+`NEXT_PUBLIC_USDA_FDC_KEY` provides a default USDA FoodData Central key for
+the diet tracker's food search; without it, each user pastes their own free
+key in Calories → Settings. Never commit real keys — `.env.local` is
+gitignored.
+
 Production build:
 
 ```powershell
