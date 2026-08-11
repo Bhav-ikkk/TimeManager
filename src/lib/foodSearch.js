@@ -30,9 +30,14 @@ export async function setFdcKey(key) {
   await setSetting(FDC_KEY_KEY, String(key || '').trim());
 }
 
-export async function hasCustomFdcKey() {
+/** The user-entered key only (empty string when relying on the env key). */
+export async function getCustomFdcKey() {
   const v = await getSetting(FDC_KEY_KEY, '');
-  return Boolean(typeof v === 'string' && v.trim());
+  return typeof v === 'string' ? v.trim() : '';
+}
+
+export function hasEnvFdcKey() {
+  return Boolean(ENV_FDC_KEY);
 }
 
 /* ---- Nutrient extraction ---------------------------------------------- */
