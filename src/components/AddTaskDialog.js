@@ -36,6 +36,12 @@ import { rescheduleAll } from '@/lib/notifications';
 const MAX_TITLE = 80;
 const MAX_NOTE = 200;
 
+function defaultTime() {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() + 30 - (d.getMinutes() % 5));
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
 export default function AddTaskDialog({ open, initial, onClose }) {
   const isEdit = Boolean(initial && initial.id);
 
@@ -54,12 +60,6 @@ export default function AddTaskDialog({ open, initial, onClose }) {
     setNote(initial?.note ?? '');
     setError('');
   }, [open, initial]);
-
-  function defaultTime() {
-    const d = new Date();
-    d.setMinutes(d.getMinutes() + 30 - (d.getMinutes() % 5));
-    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  }
 
   async function handleSave() {
     const cleanTitle = title.trim().slice(0, MAX_TITLE);
