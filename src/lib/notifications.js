@@ -101,7 +101,6 @@ async function ensureServiceWorker() {
     await navigator.serviceWorker.ready;
     return _swReg;
   } catch (e) {
-    // eslint-disable-next-line no-console
     console.warn('SW registration failed', e);
     return null;
   }
@@ -191,7 +190,6 @@ async function scheduleAt({ when, title, body, tag, key }) {
   // Layer 2 — TimestampTrigger (Chrome experimental, rarely available).
   if (triggersSupported() && reg) {
     try {
-      // eslint-disable-next-line no-undef
       const trigger = new TimestampTrigger(when.getTime());
       await reg.showNotification(title, {
         body,

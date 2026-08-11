@@ -53,7 +53,6 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        {/* eslint-disable-next-line @next/next/no-sync-scripts */}
         <script dangerouslySetInnerHTML={{ __html: noFlashScript }} />
       </head>
       <body>

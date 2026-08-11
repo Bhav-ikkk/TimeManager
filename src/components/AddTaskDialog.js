@@ -94,7 +94,6 @@ export default function AddTaskDialog({ open, initial, onClose }) {
       onClose?.();
     } catch (e) {
       setError('Could not save. Try again.');
-      // eslint-disable-next-line no-console
       console.error(e);
     } finally {
       setBusy(false);

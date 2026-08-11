@@ -17,7 +17,6 @@ async function render(svgPath, outName, size) {
     .png({ compressionLevel: 9 })
     .toBuffer();
   fs.writeFileSync(path.join(ROOT, outName), buf);
-  // eslint-disable-next-line no-console
   console.log(`wrote ${outName} (${buf.length} bytes)`);
 }
 
