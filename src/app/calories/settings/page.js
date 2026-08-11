@@ -58,6 +58,7 @@ import {
   DIET_OPTIONS,
 } from '@/lib/calories';
 import { PROVIDERS } from '@/lib/aiProviders';
+import { getCustomFdcKey, setFdcKey, hasEnvFdcKey } from '@/lib/foodSearch';
 
 const ACTIVITY_OPTIONS = [
   { value: 'sedentary', label: 'Sedentary (desk, no workouts)' },
@@ -108,6 +109,8 @@ function CalorieSettingsContent() {
   const [models, setModels] = useState({ groq: '', gemini: '', openrouter: '' });
   const [savedKeys, setSavedKeys] = useState({ groq: '', gemini: '', openrouter: '' });
   const [showKey, setShowKey] = useState(false);
+  const [fdcKey, setFdcKeyState] = useState('');
+  const [savedFdcKey, setSavedFdcKey] = useState('');
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -116,14 +119,17 @@ function CalorieSettingsContent() {
       const [p, prov] = await Promise.all([getCalorieProfile(), getProvider()]);
       setProfile(p);
       setProviderState(prov);
-      const [gk, ek, ok, gm, em, om] = await Promise.all([
+      const [gk, ek, ok, gm, em, om, fk] = await Promise.all([
         getApiKey('groq'), getApiKey('gemini'), getApiKey('openrouter'),
         getModel('groq'), getModel('gemini'), getModel('openrouter'),
+        getCustomFdcKey(),
       ]);
       const k = { groq: gk, gemini: ek, openrouter: ok };
       setKeys(k);
       setSavedKeys(k);
       setModels({ groq: gm, gemini: em, openrouter: om });
+      setFdcKeyState(fk);
+      setSavedFdcKey(fk);
     })();
   }, []);
 
@@ -158,8 +164,10 @@ function CalorieSettingsContent() {
         setModel('groq', models.groq || PROVIDERS.groq.defaultModel),
         setModel('gemini', models.gemini || PROVIDERS.gemini.defaultModel),
         setModel('openrouter', models.openrouter || PROVIDERS.openrouter.defaultModel),
+        setFdcKey(fdcKey),
       ]);
       setSavedKeys(keys);
+      setSavedFdcKey(fdcKey.trim());
       setProfile(safe);
       setSaved(true);
       setTimeout(() => setSaved(false), 2400);
@@ -284,6 +292,68 @@ function CalorieSettingsContent() {
               The key lives only in this browser's IndexedDB and is sent
               directly to the provider. We have no servers in this loop.
             </Typography>
+          </Stack>
+        </Card>
+
+        {/* USDA food-database key card */}
+        <Card sx={{ p: { xs: 2, sm: 2.5 } }}>
+          <Stack spacing={1.5}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+              <IconKey size={18} />
+              <Typography variant="subtitle2">USDA food database key</Typography>
+            </Stack>
+            <Typography variant="caption" color="text.secondary">
+              Powers the food search.{' '}
+              <MuiLink
+                href="https://fdc.nal.usda.gov/api-key-signup"
+                target="_blank"
+                rel="noopener"
+                underline="hover"
+              >
+                Get a free key <IconExternalLink size={12} style={{ verticalAlign: 'middle' }} />
+              </MuiLink>
+            </Typography>
+            <TextField
+              fullWidth
+              label="FoodData Central API key"
+              type={showKey ? 'text' : 'password'}
+              value={fdcKey}
+              onChange={(e) => setFdcKeyState(e.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+              helperText={
+                savedFdcKey
+                  ? `saved · ${maskKey(savedFdcKey)}`
+                  : hasEnvFdcKey()
+                    ? 'Using the key configured at build time. Paste your own to override.'
+                    : 'No key configured — food search is disabled until you add one.'
+              }
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <IconKey size={16} />
+                    </InputAdornment>
+                  ),
+                  endAdornment: savedFdcKey ? (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        onClick={async () => {
+                          setFdcKeyState('');
+                          await setFdcKey('');
+                          setSavedFdcKey('');
+                        }}
+                        aria-label="Clear USDA key"
+                      >
+                        <IconTrash size={16} />
+                      </IconButton>
+                    </InputAdornment>
+                  ) : null,
+                },
+                htmlInput: { maxLength: 100 },
+              }}
+            />
           </Stack>
         </Card>
 
