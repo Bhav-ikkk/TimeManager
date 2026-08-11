@@ -289,7 +289,7 @@ function CalorieSettingsContent() {
               </Grid>
             </Grid>
             <Typography variant="caption" color="text.secondary">
-              The key lives only in this browser's IndexedDB and is sent
+              The key lives only in this browser&apos;s IndexedDB and is sent
               directly to the provider. We have no servers in this loop.
             </Typography>
           </Stack>

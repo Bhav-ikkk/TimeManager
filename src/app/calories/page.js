@@ -200,7 +200,7 @@ function CaloriesPageContent() {
             </Tooltip>
           </Stack>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Search USDA's database for verified nutrition. Free-text logs work too.
+            Search USDA&apos;s database for verified nutrition. Free-text logs work too.
           </Typography>
         </Box>
 
@@ -303,7 +303,7 @@ function CaloriesPageContent() {
           />
         ) : (
           <Stack spacing={1}>
-            <Typography variant="overline" color="text.secondary">Today's log</Typography>
+            <Typography variant="overline" color="text.secondary">Today&apos;s log</Typography>
             {entries.map((e) => <EntryRow key={e.id} entry={e} onDelete={() => handleDelete(e.id)} />)}
           </Stack>
         )}
@@ -567,7 +567,7 @@ function DayReport({ data, target }) {
     <Card sx={{ p: 2.5 }}>
       <Stack spacing={2}>
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 0.75 }}>
-          <Typography variant="h5" sx={{ flex: 1 }}>Today's report</Typography>
+          <Typography variant="h5" sx={{ flex: 1 }}>Today&apos;s report</Typography>
           <Chip size="small" color={alignColor} label={String(align).replace('-', ' ')} />
         </Stack>
 
