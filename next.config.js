@@ -15,7 +15,10 @@ const nextConfig = {
       "object-src 'none'",
       "frame-src 'none'",
       "frame-ancestors 'none'",
-      "form-action 'self'",
+      // github.com is allowed because the Auth.js sign-in form 302s to the
+      // GitHub OAuth authorize page, and Chrome enforces form-action on
+      // post-submission redirect targets.
+      "form-action 'self' https://github.com",
       "img-src 'self' data: blob:",
       "media-src 'self'",
       "font-src 'self' data:",
