@@ -56,7 +56,13 @@ npm run build
 npm run start
 ```
 
-Run a dependency security check:
+Run the test suite (Vitest + fake-indexeddb; also runs in CI on every PR):
+
+```powershell
+npm test
+```
+
+Run a dependency security check (also runs in CI):
 
 ```powershell
 npm audit --audit-level=moderate
