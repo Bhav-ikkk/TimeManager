@@ -48,3 +48,47 @@ export async function downloadBackup() {
   URL.revokeObjectURL(url);
   return data;
 }
+
+/** Basic shape check before we wipe anything. Returns row counts per table. */
+export function validateBackup(parsed) {
+  if (!parsed || typeof parsed !== 'object') throw new Error('Not a valid backup file.');
+  if (parsed.app !== 'taunttable') throw new Error('This file is not a TauntTable backup.');
+  if (typeof parsed.format !== 'number' || parsed.format > BACKUP_FORMAT) {
+    throw new Error('This backup was made by a newer version of TauntTable. Update the app first.');
+  }
+  if (!parsed.tables || typeof parsed.tables !== 'object') {
+    throw new Error('Backup file has no data tables.');
+  }
+  const counts = {};
+  for (const [name, rows] of Object.entries(parsed.tables)) {
+    if (!Array.isArray(rows)) throw new Error(`Table "${name}" in the backup is corrupted.`);
+    counts[name] = rows.length;
+  }
+  return counts;
+}
+
+/**
+ * Replace all local data with the backup's contents. Runs in a single
+ * transaction so a failed import can't leave the database half-restored.
+ * Tables present locally but missing from the backup are left untouched.
+ */
+export async function importAllData(parsed) {
+  const db = getDB();
+  if (!db) throw new Error('Storage is unavailable in this context.');
+  validateBackup(parsed);
+
+  const known = db.tables.filter(
+    (t) => !TRANSIENT_TABLES.has(t.name) && Array.isArray(parsed.tables[t.name])
+  );
+  if (!known.length) throw new Error('Backup contains no importable data.');
+
+  await db.transaction('rw', known, async () => {
+    for (const table of known) {
+      await table.clear();
+      const rows = parsed.tables[table.name];
+      if (rows.length) await table.bulkPut(rows);
+    }
+  });
+
+  return known.map((t) => t.name);
+}
