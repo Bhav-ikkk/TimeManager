@@ -4,13 +4,16 @@
  * These run under a DST-observing timezone (see vitest.config.mjs) so any
  * math that assumes a constant UTC offset breaks loudly here.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   getDB,
   todayKey,
   dateFromKey,
   completionId,
   isTaskOnDate,
+  addTask,
+  setCompletion,
+  getRangeStats,
 } from './db';
 
 async function clearAllTables() {
@@ -18,8 +21,17 @@ async function clearAllTables() {
   for (const table of db.tables) await table.clear();
 }
 
+function setNow(date) {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(date);
+}
+
 beforeEach(async () => {
   await clearAllTables();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('todayKey / dateFromKey', () => {
@@ -72,5 +84,73 @@ describe('isTaskOnDate', () => {
     const task = { ...base, days: [0] }; // Sundays
     expect(isTaskOnDate(task, new Date(2026, 2, 8))).toBe(true);
     expect(isTaskOnDate(task, new Date(2026, 2, 9))).toBe(false);
+  });
+});
+
+describe('getRangeStats', () => {
+  it('computes scheduled/completed/missed per day across a month boundary', async () => {
+    setNow(new Date(2026, 1, 2, 12, 0)); // Feb 2 2026
+    const taskId = await addTask({
+      title: 'Daily run',
+      time: '07:00',
+      days: [0, 1, 2, 3, 4, 5, 6],
+    });
+    // Backdate creation so the whole range is in scope.
+    await getDB().tasks.update(taskId, { createdAt: new Date(2026, 0, 25).getTime() });
+
+    await setCompletion(taskId, '2026-01-31', true);
+
+    const stats = await getRangeStats(new Date(2026, 0, 30), new Date(2026, 1, 2));
+    expect(stats.map((s) => s.dateKey)).toEqual([
+      '2026-01-30',
+      '2026-01-31',
+      '2026-02-01',
+      '2026-02-02',
+    ]);
+    for (const s of stats) expect(s.scheduled).toBe(1);
+    expect(stats.find((s) => s.dateKey === '2026-01-31').completed).toBe(1);
+    expect(stats.find((s) => s.dateKey === '2026-01-31').missed).toBe(0);
+    expect(stats.find((s) => s.dateKey === '2026-01-30').missed).toBe(1);
+  });
+
+  it('enumerates exactly one entry per calendar day across the spring-forward DST day', async () => {
+    setNow(new Date(2026, 2, 10, 12, 0)); // Mar 10 2026
+    const taskId = await addTask({
+      title: 'Meditate',
+      time: '06:30',
+      days: [0, 1, 2, 3, 4, 5, 6],
+    });
+    await getDB().tasks.update(taskId, { createdAt: new Date(2026, 2, 1).getTime() });
+
+    const stats = await getRangeStats(new Date(2026, 2, 7), new Date(2026, 2, 10));
+    expect(stats.map((s) => s.dateKey)).toEqual([
+      '2026-03-07',
+      '2026-03-08', // 23-hour day in America/New_York
+      '2026-03-09',
+      '2026-03-10',
+    ]);
+  });
+
+  it('does not schedule tasks before their creation date', async () => {
+    setNow(new Date(2026, 3, 10, 12, 0)); // Apr 10 2026
+    await addTask({ title: 'New habit', time: '08:00', days: [0, 1, 2, 3, 4, 5, 6] });
+
+    const stats = await getRangeStats(new Date(2026, 3, 8), new Date(2026, 3, 10));
+    expect(stats.find((s) => s.dateKey === '2026-04-08').scheduled).toBe(0);
+    expect(stats.find((s) => s.dateKey === '2026-04-09').scheduled).toBe(0);
+    expect(stats.find((s) => s.dateKey === '2026-04-10').scheduled).toBe(1);
+  });
+
+  it('shows one-off tasks only on their date', async () => {
+    setNow(new Date(2026, 4, 1, 9, 0)); // May 1 2026
+    await addTask({ title: 'Dentist', time: '15:00', days: [], dateOneOff: '2026-05-02' });
+
+    const stats = await getRangeStats(new Date(2026, 4, 1), new Date(2026, 4, 3));
+    expect(stats.map((s) => s.scheduled)).toEqual([0, 1, 0]);
+  });
+
+  it('returns an empty array for a reversed range', async () => {
+    const stats = await getRangeStats(new Date(2026, 5, 10), new Date(2026, 5, 1));
+    expect(stats).toEqual([]);
   });
 });
