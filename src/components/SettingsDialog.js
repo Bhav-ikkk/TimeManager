@@ -20,11 +20,19 @@ import {
   Alert,
   Divider,
 } from '@mui/material';
-import { IconX, IconBell, IconQuote, IconApple, IconBrandGithub } from '@tabler/icons-react';
+import {
+  IconX,
+  IconBell,
+  IconQuote,
+  IconApple,
+  IconBrandGithub,
+  IconDownload,
+} from '@tabler/icons-react';
 import Link from 'next/link';
 import AIProviderSettings from './AIProviderSettings';
 import TimeField from './TimeField';
 import { GITHUB_STAR_URL, getDietFeatureEnabled, setDietFeatureEnabled } from '@/lib/features';
+import { downloadBackup } from '@/lib/backup';
 import {
   getMorningAlarm,
   setMorningAlarm,
@@ -40,6 +48,7 @@ export default function SettingsDialog({ open, onClose }) {
   const [dietWasEnabled, setDietWasEnabled] = useState(false);
   const [showDietSteps, setShowDietSteps] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [dataStatus, setDataStatus] = useState(null); // { severity, message }
 
   useEffect(() => {
     if (!open) return;
@@ -73,6 +82,15 @@ export default function SettingsDialog({ open, onClose }) {
     const next = event.target.checked;
     setDietEnabled(next);
     if (next && !dietWasEnabled) setShowDietSteps(true);
+  }
+
+  async function handleExport() {
+    try {
+      await downloadBackup();
+      setDataStatus({ severity: 'success', message: 'Backup downloaded. Keep the file private — it includes any API keys you saved.' });
+    } catch (e) {
+      setDataStatus({ severity: 'error', message: e?.message || 'Export failed.' });
+    }
   }
 
   async function enableNotifications() {
@@ -154,6 +172,31 @@ export default function SettingsDialog({ open, onClose }) {
               </Alert>
             ) : null}
           </Stack>
+
+          <Stack spacing={1}>
+            <Typography variant="subtitle2">Your data</Typography>
+            <Typography variant="caption" color="text.secondary">
+              Everything lives on this device. Export a JSON backup so clearing
+              site data or losing your phone doesn&apos;t wipe your history.
+            </Typography>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+              <Button
+                fullWidth
+                variant="outlined"
+                startIcon={<IconDownload size={16} />}
+                onClick={handleExport}
+              >
+                Export data
+              </Button>
+            </Stack>
+            {dataStatus ? (
+              <Alert severity={dataStatus.severity} onClose={() => setDataStatus(null)}>
+                <Typography variant="caption">{dataStatus.message}</Typography>
+              </Alert>
+            ) : null}
+          </Stack>
+
+          <Divider />
 
           <Stack spacing={1}>
             <Typography variant="subtitle2">More</Typography>
