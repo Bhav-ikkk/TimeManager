@@ -182,6 +182,11 @@ explicit confirmation.
 
 - No login, analytics, telemetry, or app-owned backend.
 - IndexedDB is the source of truth for user data.
+- Two small pieces of ambient UI state intentionally live in `localStorage`
+  instead of IndexedDB: the theme (`tt-theme`, read synchronously by a
+  pre-paint script to avoid a light/dark flash — IndexedDB is async and can't
+  be read that early) and the install-prompt-dismissed flag. Neither is user
+  data and neither is included in backups.
 - AI keys are BYOK, stored locally, and never sent to a TauntTable server.
 - External AI requests go directly from the browser to Groq, Gemini, or OpenRouter.
 - Security headers include CSP, HSTS, X-Frame-Options, X-Content-Type-Options,
