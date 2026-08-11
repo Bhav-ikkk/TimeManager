@@ -6,8 +6,8 @@
  * assertions inspect that store rather than mocking timers.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll, vi } from 'vitest';
-import { getDB, addTask } from './db';
-import { rescheduleAll } from './notifications';
+import { getDB, addTask, setCompletion, todayKey } from './db';
+import { rescheduleAll, setNotificationPrefs } from './notifications';
 
 class FakeNotification {
   static permission = 'granted';
@@ -93,5 +93,92 @@ describe('rescheduleAll', () => {
     expect(keys[0]).toBe('2026-03-06');
     expect(keys[2]).toBe('2026-03-08'); // the 23-hour day
     expect(keys[6]).toBe('2026-03-12');
+  });
+
+  it('skips today when the task time has already passed', async () => {
+    setNow(new Date(2026, 2, 6, 12, 0));
+    await addTask({ title: 'Morning pages', time: '08:00', days: [0, 1, 2, 3, 4, 5, 6] });
+
+    await rescheduleAll();
+
+    const entries = await pendingByPrefix('task::');
+    expect(entries).toHaveLength(6);
+    expect(entries[0].id).toContain('2026-03-07');
+  });
+
+  it('skips tasks already completed today', async () => {
+    setNow(new Date(2026, 2, 6, 12, 0));
+    const taskId = await addTask({ title: 'Workout', time: '18:00', days: [0, 1, 2, 3, 4, 5, 6] });
+    await setCompletion(taskId, todayKey(), true);
+
+    await rescheduleAll();
+
+    const entries = await pendingByPrefix('task::');
+    expect(entries).toHaveLength(6);
+    expect(entries.every((e) => !e.id.includes('2026-03-06'))).toBe(true);
+  });
+
+  it('schedules one-off tasks exactly once', async () => {
+    setNow(new Date(2026, 2, 6, 12, 0));
+    await addTask({ title: 'Dentist', time: '15:00', days: [], dateOneOff: '2026-03-09' });
+
+    await rescheduleAll();
+
+    const entries = await pendingByPrefix('task::');
+    expect(entries).toHaveLength(1);
+    expect(entries[0].id).toContain('2026-03-09');
+    expect(new Date(entries[0].when).getHours()).toBe(15);
+  });
+
+  it('is idempotent — rescheduling twice does not duplicate entries', async () => {
+    setNow(new Date(2026, 2, 6, 12, 0));
+    await addTask({ title: 'Read', time: '21:00', days: [0, 1, 2, 3, 4, 5, 6] });
+
+    await rescheduleAll();
+    await rescheduleAll();
+
+    const entries = await pendingByPrefix('task::');
+    expect(entries).toHaveLength(7);
+  });
+
+  it('spans month boundaries with correct date keys', async () => {
+    setNow(new Date(2026, 0, 29, 8, 0)); // Thu Jan 29 2026
+    await addTask({ title: 'Stretch', time: '20:00', days: [0, 1, 2, 3, 4, 5, 6] });
+
+    await rescheduleAll();
+
+    const keys = (await pendingByPrefix('task::')).map((e) => e.id.split('::')[1]);
+    expect(keys).toEqual([
+      '2026-01-29',
+      '2026-01-30',
+      '2026-01-31',
+      '2026-02-01',
+      '2026-02-02',
+      '2026-02-03',
+      '2026-02-04',
+    ]);
+  });
+
+  it('adds morning alarm and quote entries when those prefs are on', async () => {
+    setNow(new Date(2026, 2, 6, 6, 0)); // 06:00, before the 07:00 default alarm
+    await setNotificationPrefs({ morningAlarm: true, dailyQuotes: true });
+
+    const morning = await pendingByPrefix('morning::');
+    expect(morning).toHaveLength(7);
+    for (const entry of morning) expect(new Date(entry.when).getHours()).toBe(7);
+
+    // Default quote times: 08:30, 13:30, 20:30 — all still ahead today.
+    const quotes = await pendingByPrefix('quote::');
+    expect(quotes).toHaveLength(21);
+  });
+
+  it('writes nothing without notification permission', async () => {
+    setNow(new Date(2026, 2, 6, 12, 0));
+    await addTask({ title: 'Journal', time: '19:00', days: [0, 1, 2, 3, 4, 5, 6] });
+    FakeNotification.permission = 'denied';
+
+    await rescheduleAll();
+
+    expect(await getDB().pending.toArray()).toHaveLength(0);
   });
 });
